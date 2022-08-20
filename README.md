@@ -1,4 +1,4 @@
-Docker is a stand-alone plugin that is "composed" within eramba and used for docker image building and docker workflows and stuff but you can easily do (or anybody when we open eramba repository public, this repository will become public as well https://github.com/eramba/docker):
+Docker is a stand-alone plugin that is "composed" within eramba and used for docker image building and docker workflows but can be used to run docker versions of eramba software very easily:
 
 ```shell
 git clone https://github.com/eramba/docker
