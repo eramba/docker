@@ -15,13 +15,13 @@
 FROM ghcr.io/eramba/php:8.1-apache as base
 
 # Setup vhost
-COPY apache/vhost.conf /etc/apache2/sites-available/000-default.conf
+COPY app/upgrade/vendor/eramba/docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
 
 # Setup php
-COPY php/php.ini /usr/local/etc/php/php.ini
+COPY app/upgrade/vendor/eramba/docker/php/php.ini /usr/local/etc/php/php.ini
 
 # Setup Cron tasks for eramba, hourly daily yearly cron with worker starting up every 10 minutes
-COPY crontab/crontab /etc/cron.d/eramba-crontab
+COPY app/upgrade/vendor/eramba/docker/crontab/crontab /etc/cron.d/eramba-crontab
 
 RUN chmod 0644 /etc/cron.d/eramba-crontab
 RUN chown www-data: /etc/cron.d/eramba-crontab
@@ -54,7 +54,7 @@ ARG UNAME=www-data
 ## To be able to specify composer.json file for a build.
 ENV COMPOSER=${COMPOSER}
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY app/upgrade/vendor/eramba/docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 COPY --chown=$UNAME:$UNAME . /var/www/eramba
