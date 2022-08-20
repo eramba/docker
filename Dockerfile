@@ -62,7 +62,7 @@ COPY --chown=$UNAME:$UNAME . /var/www/eramba
 RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts" $UNAME
 RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "ssh -T git@github.com 2>&1 | tee /dev/null" $UNAME
 RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar clearcache" $UNAME
-RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar install --prefer-dist --no-interaction" $UNAME
+RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar install --prefer-dist --no-interaction --ignore-platform-reqs" $UNAME
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
