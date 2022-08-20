@@ -1,0 +1,5 @@
+@hourly export $(cat /var/www/eramba/app/upgrade/.docker/main.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job hourly >> /var/log/cron.log 2>&1
+@daily export $(cat /var/www/eramba/app/upgrade/.docker/main.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job daily >> /var/log/cron.log 2>&1
+@yearly export $(cat /var/www/eramba/app/upgrade/.docker/main.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job yearly >> /var/log/cron.log 2>&1
+*/10 * * * * export $(cat /var/www/eramba/app/upgrade/.docker/main.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake queue run -v >> /var/log/cron.log 2>&1
+# remember to end this file with an empty new line

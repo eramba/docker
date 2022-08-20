@@ -1,0 +1,34 @@
+{
+    "name": "eramba/docker",
+    "description": "Docker helper files for running eramba software",
+    "keywords": [
+        "eramba",
+        "docker"
+    ],
+    "type": "library",
+    "homepage": "https://eramba.org",
+    "authors": [
+        {
+            "name": "Martin Horvath",
+            "email": "martin@eramba.org"
+        }
+    ],
+    "require": {
+    },
+    "require-dev": {
+    },
+    "autoload": {
+    },
+    "autoload-dev": {
+    },
+    "scripts": {
+        "simple-install-enterprise": "docker compose -f docker-compose.simple-install.yml up -d  --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes"
+    },
+    "repositories": {
+        "satis": {
+            "type": "composer",
+            "url": "https://plugins.eramba.org/"
+        }
+    }
+}
+

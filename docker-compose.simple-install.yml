@@ -1,0 +1,53 @@
+version: '3.9'
+services:
+  mysql:
+    container_name: mysql
+    image: mysql:8.0.28-oracle
+    command: ["mysqld", "--disable-log-bin"]
+    volumes:
+      - db-data:/var/lib/mysql
+      - mysql/conf.d:/etc/mysql/conf.d
+      - mysql/entrypoint:/docker-entrypoint-initdb.d
+    environment:
+      MYSQL_DATABASE: docker
+      MYSQL_USER: docker
+      MYSQL_PASSWORD: docker
+      MYSQL_ROOT_PASSWORD: docker
+  redis:
+    container_name: redis
+    image: redis:6.0.16-alpine
+  eramba:
+    container_name: eramba
+    image: ghcr.io/eramba/eramba_v2:latest
+    ports:
+      - 8080:80
+    volumes:
+      - data:/var/www/eramba/app/upgrade/data
+      - app:/var/www/eramba
+    env_file:
+      - main.env
+    links:
+      - mysql
+      - redis
+    depends_on:
+      - mysql
+  cron:
+    container_name: cron
+    image: ghcr.io/eramba/eramba_v2:latest
+    command: ["cron", "-f"]
+    entrypoint: ["docker-php-entrypoint"]
+    volumes:
+      - data:/var/www/eramba/app/upgrade/data
+      - app:/var/www/eramba
+    env_file:
+      - main.env
+    links:
+      - mysql
+      - redis
+      - eramba
+    depends_on:
+      - eramba
+volumes:
+  data:
+  app:
+  db-data:
