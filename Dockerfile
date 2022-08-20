@@ -54,7 +54,7 @@ ARG UNAME=www-data
 ## To be able to specify composer.json file for a build.
 ENV COMPOSER=${COMPOSER}
 
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY ./docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 COPY --chown=$UNAME:$UNAME . /var/www/eramba
