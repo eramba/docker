@@ -18,6 +18,7 @@ slow_query_log=1
 slow_query_log_file=/tmp/mysql-slow.log
 log_bin_trust_function_creators=OFF
 log_bin=OFF
+bind-address=0.0.0.0
 
 # performance config
 performance_schema=ON
@@ -31,3 +32,6 @@ innodb_monitor_enable=all
 quick
 quote-names
 max_allowed_packet=128M
+
+[client]
+bind-address=0.0.0.0
