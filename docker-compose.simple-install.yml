@@ -18,7 +18,7 @@ services:
     image: redis:6.0.16-alpine
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba_v2:latest
+    image: ghcr.io/eramba/eramba:latest
     ports:
       - 8080:80
     volumes:
@@ -33,7 +33,7 @@ services:
       - mysql
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba_v2:latest
+    image: ghcr.io/eramba/eramba:latest
     command: ["cron", "-f"]
     entrypoint: ["docker-php-entrypoint"]
     volumes:
