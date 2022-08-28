@@ -22,8 +22,6 @@
     "autoload-dev": {
     },
     "scripts": {
-        "simple-install-enterprise": "docker compose -f docker-compose.simple-install.yml -f docker-compose.simple-install.enterprise.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes",
-        "simple-install-community": "docker compose -f docker-compose.simple-install.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes"
     },
     "repositories": {
         "satis": {
