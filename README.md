@@ -42,3 +42,8 @@ docker compose -f docker-compose.simple-install.yml -f docker-compose.simple-ins
 ### Note
 
 Running both Enterprise and Community installations at the same time within a single docker engine is not supported.
+
+
+### Advanced Installation
+
+To-be-determined
