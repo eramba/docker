@@ -1,8 +1,9 @@
 #!/bin/sh
 
-# chown www-data: -R /var/www
-
 cd /var/www/eramba || exit
+
+# syncing dir structure into /data folder from /data_template
+su -s /bin/bash -c "rsync -rv app/upgrade/data_template/ app/upgrade/data/" www-data
 
 # when deploying a code or DB migration change and you want the "old workers" based on the old code
 # to not process any new incoming jobs after deployment.
@@ -20,6 +21,6 @@ su -s /bin/bash -c "php app/upgrade/bin/cake.php database initialize" www-data
 su -s /bin/bash -c "php app/upgrade/bin/cake.php setup.maintenance_mode deactivate" www-data
 
 # Initialize a worker with the deployment so we won't have to wait for the cron to kick in which can take up to 10 minutes.
-su -s /bin/bash -c "php app/upgrade/bin/cake.php queue run -v" www-data  2>&1 &
+su -s /bin/bash -c "php app/upgrade/bin/cake.php queue run -v" www-data 2>&1 &
 
 exec docker-php-entrypoint "$@"

@@ -14,6 +14,9 @@
 ## base
 FROM ghcr.io/eramba/php:8.1-apache as base
 
+# Install rsync
+RUN apt-get update && apt-get install -y rsync
+
 # Setup vhost
 COPY ./docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
 
