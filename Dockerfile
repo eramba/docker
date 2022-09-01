@@ -49,23 +49,23 @@ RUN chown www-data: -R /var/www/
 ## app
 FROM base as eramba
 
-ARG COMPOSER=composer.json
-ARG UID=33
-ARG GID=33
+#ARG COMPOSER=composer.json
+#ARG UID=33
+#ARG GID=33
 ARG UNAME=www-data
 
 ## To be able to specify composer.json file for a build.
-ENV COMPOSER=${COMPOSER}
+#ENV COMPOSER=${COMPOSER}
 
 COPY ./docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 COPY --chown=$UNAME:$UNAME . /var/www/eramba
-
-RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts" $UNAME
-RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "ssh -T git@github.com 2>&1 | tee /dev/null" $UNAME
-RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar clearcache" $UNAME
-RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar install --prefer-dist --no-interaction --ignore-platform-reqs" $UNAME
+#
+#RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts" $UNAME
+#RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "ssh -T git@github.com 2>&1 | tee /dev/null" $UNAME
+#RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar clearcache" $UNAME
+#RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "cd /var/www/eramba && php composer.phar install --prefer-dist --no-interaction --ignore-platform-reqs" $UNAME
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 CMD ["apache2-foreground"]
