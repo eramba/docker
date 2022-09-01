@@ -61,6 +61,7 @@ COPY ./docker/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
 COPY --chown=$UNAME:$UNAME . /var/www/eramba
+RUN su -s /bin/bash -c "cd /var/www/eramba && php composer.phar run-script post-install-cmd --no-interaction" $UNAME
 #
 #RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "mkdir -p -m 0600 ~/.ssh && ssh-keyscan github.com >> ~/.ssh/known_hosts" $UNAME
 #RUN --mount=type=ssh,uid=$UID,gid=$GID su -s /bin/bash -c "ssh -T git@github.com 2>&1 | tee /dev/null" $UNAME
