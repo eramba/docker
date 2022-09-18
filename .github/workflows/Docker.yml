@@ -1,0 +1,195 @@
+name: Docker
+
+on:
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  build_push:
+    name: Build and Push Eramba Docker Image [${{ matrix.build-type }}]
+    runs-on: ubuntu-22.04
+#      - self-hosted
+#      - Linux
+#      - ARM64
+    strategy:
+      max-parallel: 1
+      matrix:
+        build-type:
+          - enterprise
+#          - community
+
+    steps:
+      - uses: webfactory/ssh-agent@v0.5.4
+        with:
+          ssh-private-key: |
+            ${{ secrets.SSH_PRIVATE_KEY }}
+      #            ${{ secrets.SSH_RUNNERS_PRIVATE_KEY }}
+
+      - name: Check out the repo
+        uses: actions/checkout@v3
+        with:
+          repository: eramba/eramba
+          path: eramba
+
+      - name: Actions for some reason delete all .gitkeep files with all remaining empty dirs, this reverts it.
+        working-directory: eramba
+        run: |
+          if git status | grep "app/upgrade/data/.gitkeep"; then
+            git checkout -f
+          fi
+          git status;
+
+      - name: Setup build distribution type vars based on the matrix
+        id: build-type
+        run: |
+          if ${{ matrix.build-type == 'enterprise' }}; then
+            echo '::set-output name=image::ghcr.io/eramba/docker-enterprise'
+            exit 0
+          fi
+
+          if ${{ matrix.build-type == 'community' }}; then
+            echo '::set-output name=image::ghcr.io/eramba/docker-community'
+            exit 0
+          fi
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: ${{ runner.temp }}/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ matrix.build-type }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.TOKEN_INCREASED_PERMISSIONS }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v4
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          images: ${{ steps.build-type.outputs.image }}
+
+      - name: Composer install
+        working-directory: eramba
+        run: |
+          apt install -y composer
+          composer install --no-interaction --ignore-platform-reqs --prefer-dist
+          composer require eramba/${{ matrix.build-type }}-pack:^1.0 --no-interaction --ignore-platform-reqs --prefer-dist
+
+      - name: Check out the repo
+        uses: actions/checkout@v3
+        with:
+          repository: eramba/docker
+          path: docker
+
+      - name: Copy docker source files to app/upgrade/vendor/eramba/docker to test it out
+        run: |
+          rm -rf eramba/app/upgrade/vendor/docker
+          cp -r docker eramba/app/upgrade/vendor/docker
+
+      - name: Build Docker image
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          context: eramba
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: eramba/app/upgrade/vendor/eramba/docker/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          target: eramba
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          push: true
+          cache-from: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache,mode=max
+
+      - name: Run docker compose
+        working-directory: eramba
+        run: |
+          docker container rm -f -v cron eramba mysql redis 2> /dev/null
+          docker volume rm -f eramba_app eramba_data eramba_db-data 2> /dev/null
+          docker volume rm -f eramba_v2_app eramba_v2_data eramba_v2_db-data 2> /dev/null
+          docker volume rm -f eramba-enterprise_app eramba-enterprise_data eramba-enterprise_db-data 2> /dev/null
+          docker volume rm -f eramba-community_app eramba-community_data eramba-community_db-data 2> /dev/null
+          docker volume rm -f eramba_v3_app eramba_v3_data eramba_v3_db-data 2> /dev/null
+          docker volume rm -f docker_app docker_data docker_db-data 2> /dev/null
+
+          if ${{ github.event_name != 'release' }}; then
+            docker tag ${{ steps.meta.outputs.tags }} ${{ steps.build-type.outputs.image }}:latest
+          else
+            echo "This is `Release` event, latest tag already there, nothing to tag."
+          fi
+
+          if ${{ matrix.build-type == 'enterprise' }}; then
+            docker compose -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.yml -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.enterprise.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes;
+          fi
+
+          if ${{ matrix.build-type == 'community' }}; then
+            docker compose -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes;
+          fi
+
+      - name: Wait for apache to start
+        timeout-minutes: 5
+        run: while ! `curl -v -o /dev/null http://localhost:8080`; do printf 'Waiting for Apache...\n'; sleep 2; done;
+
+      - name: HTTP Check
+        run: |
+          if curl -w '%{http_code}\n' -o /dev/null --silent  http://localhost:8080/settings/test-public-address | grep 204; then
+            exit 0
+          else
+            exit 1
+          fi
+
+      - name: CMD Check
+        run: |
+          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake current_config validate; then
+            exit 0
+          fi
+
+          exit 1
+
+      - name: System Health Check
+        run: |
+          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake system_health check; then
+            exit 0
+          fi
+
+          exit 1
+
+      - name: Cypress Tests Dependencies
+        run: apt-get install -y npm libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
+
+      - name: Prepare cypress environmental
+        id: cypress-environmental
+        run: |
+          if ${{ matrix.build-type == 'enterprise' }}; then
+            echo '::set-output name=env-value::on'
+          else
+            echo '::set-output name=env-value::off'
+          fi
+
+      - name: Cypress Tests
+        uses: cypress-io/github-action@v4
+        with:
+          working-directory: eramba/app/upgrade
+          browser: electron
+          config: pageLoadTimeout=100000,baseUrl=http://localhost:8080
+          record: true
+          cache-key: type-${{ matrix.build-type }}-on-${{ runner.os }}
+        env:
+          CYPRESS_enterprise: ${{ steps.cypress-environmental.outputs.env-value }}
+          # pass the Dashboard record key as an environment variable
+          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+          # pass GitHub token to allow accurately detecting a build vs a re-run build
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
