@@ -100,7 +100,7 @@ jobs:
       - name: Composer install
         working-directory: eramba
         run: |
-          apt install -y composer
+          sudo apt install -y composer
           composer install --no-interaction --ignore-platform-reqs --prefer-dist
           composer require eramba/${{ matrix.build-type }}-pack:^1.0 --no-interaction --ignore-platform-reqs --prefer-dist
 
@@ -154,18 +154,18 @@ jobs:
           fi
 
           exit 1
-
-      - name: Cypress Tests Dependencies
-        run: apt-get install -y npm libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
-
-      - name: Prepare cypress environmental
-        id: cypress-environmental
-        run: |
-          if ${{ matrix.build-type == 'enterprise' }}; then
-            echo '::set-output name=env-value::on'
-          else
-            echo '::set-output name=env-value::off'
-          fi
+#
+#      - name: Cypress Tests Dependencies
+#        run: sudo apt-get install -y npm libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2 libxtst6 xauth xvfb
+#
+#      - name: Prepare cypress environmental
+#        id: cypress-environmental
+#        run: |
+#          if ${{ matrix.build-type == 'enterprise' }}; then
+#            echo '::set-output name=env-value::on'
+#          else
+#            echo '::set-output name=env-value::off'
+#          fi
 
 #      - name: Cypress Tests
 #        uses: cypress-io/github-action@v4
