@@ -4,6 +4,12 @@ on:
   pull_request:
     branches:
       - '*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Eramba Version (you can put any branch name)'
+        required: true
+        default: '3.x'
 
 jobs:
   build_push:
@@ -13,13 +19,21 @@ jobs:
 #      - Linux
 #      - ARM64
     strategy:
-      max-parallel: 1
+#      max-parallel: 1
       matrix:
         build-type:
           - enterprise
-#          - community
+          - community
 
     steps:
+      - id: inputs
+        run: |
+          if ${{ github.event.inputs.version == '' }}; then
+            echo '::set-output name=version::3.x'
+          else
+            echo '::set-output name=version::${{ github.event.inputs.version }}'
+          fi
+
       - uses: webfactory/ssh-agent@v0.5.4
         with:
           ssh-private-key: |
@@ -31,6 +45,7 @@ jobs:
         with:
           repository: eramba/eramba
           path: eramba
+          ref: ${{ steps.inputs.outputs.version }}
 
       - name: Actions for some reason delete all .gitkeep files with all remaining empty dirs, this reverts it.
         working-directory: eramba
@@ -90,28 +105,12 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
         with:
-          repository: eramba/docker
           path: docker
 
       - name: Copy docker source files to app/upgrade/vendor/eramba/docker to test it out
         run: |
           rm -rf eramba/app/upgrade/vendor/docker
           cp -r docker eramba/app/upgrade/vendor/docker
-
-      - name: Build Docker image
-        id: docker_build
-        uses: docker/build-push-action@v3
-        with:
-          context: eramba
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: eramba/app/upgrade/vendor/eramba/docker/Dockerfile
-          builder: ${{ steps.buildx.outputs.name }}
-          target: eramba
-          labels: ${{ steps.meta.outputs.labels }}
-          tags: ${{ steps.meta.outputs.tags }}
-          push: true
-          cache-from: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache
-          cache-to: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache,mode=max
 
       - name: Run docker compose
         working-directory: eramba
@@ -123,20 +122,8 @@ jobs:
           docker volume rm -f eramba-community_app eramba-community_data eramba-community_db-data 2> /dev/null
           docker volume rm -f eramba_v3_app eramba_v3_data eramba_v3_db-data 2> /dev/null
           docker volume rm -f docker_app docker_data docker_db-data 2> /dev/null
-
-          if ${{ github.event_name != 'release' }}; then
-            docker tag ${{ steps.meta.outputs.tags }} ${{ steps.build-type.outputs.image }}:latest
-          else
-            echo "This is `Release` event, latest tag already there, nothing to tag."
-          fi
-
-          if ${{ matrix.build-type == 'enterprise' }}; then
-            docker compose -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.yml -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.enterprise.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes;
-          fi
-
-          if ${{ matrix.build-type == 'community' }}; then
-            docker compose -f app/upgrade/vendor/eramba/docker/docker-compose.simple-install.yml up -d --always-recreate-deps --force-recreate --remove-orphans --renew-anon-volumes;
-          fi
+          
+          docker compose up -d
 
       - name: Wait for apache to start
         timeout-minutes: 5
@@ -178,18 +165,32 @@ jobs:
             echo '::set-output name=env-value::off'
           fi
 
-      - name: Cypress Tests
-        uses: cypress-io/github-action@v4
-        with:
-          working-directory: eramba/app/upgrade
-          browser: electron
-          config: pageLoadTimeout=100000,baseUrl=http://localhost:8080
-          record: true
-          cache-key: type-${{ matrix.build-type }}-on-${{ runner.os }}
-        env:
-          CYPRESS_enterprise: ${{ steps.cypress-environmental.outputs.env-value }}
-          # pass the Dashboard record key as an environment variable
-          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
-          # pass GitHub token to allow accurately detecting a build vs a re-run build
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#      - name: Cypress Tests
+#        uses: cypress-io/github-action@v4
+#        with:
+#          working-directory: eramba/app/upgrade
+#          browser: electron
+#          config: pageLoadTimeout=100000,baseUrl=http://localhost:8080
+#          record: true
+#          cache-key: type-${{ matrix.build-type }}-on-${{ runner.os }}
+#        env:
+#          CYPRESS_enterprise: ${{ steps.cypress-environmental.outputs.env-value }}
+#          # pass the Dashboard record key as an environment variable
+#          CYPRESS_RECORD_KEY: ${{ secrets.CYPRESS_RECORD_KEY }}
+#          # pass GitHub token to allow accurately detecting a build vs a re-run build
+#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Build Docker image
+        id: docker_build
+        uses: docker/build-push-action@v3
+        with:
+          context: eramba
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: eramba/app/upgrade/vendor/eramba/docker/Dockerfile
+          builder: ${{ steps.buildx.outputs.name }}
+          target: eramba
+          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta.outputs.tags }}
+          push: true
+          cache-from: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache
+          cache-to: type=registry,ref=${{ steps.build-type.outputs.image }}:buildcache,mode=max
