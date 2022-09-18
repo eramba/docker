@@ -46,6 +46,7 @@ jobs:
           repository: eramba/eramba
           path: eramba
           ref: ${{ steps.inputs.outputs.version }}
+          ssh-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Actions for some reason delete all .gitkeep files with all remaining empty dirs, this reverts it.
         working-directory: eramba
