@@ -1,6 +1,6 @@
 # SSL
-apache/mycert.crt
-apache/mycert.key
+apache/ssl/mycert.crt
+apache/ssl/mycert.key
 
 # OS generated files #
 ######################

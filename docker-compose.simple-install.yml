@@ -25,8 +25,8 @@ services:
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
-      - ./apache/mycert.crt:/etc/ssl/certs/mycert.crt
-      - ./apache/mycert.key:/etc/ssl/private/mycert.key
+      - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
+      - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
     env_file:
       - main.env
     links:
