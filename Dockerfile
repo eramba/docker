@@ -38,6 +38,7 @@ RUN chmod gu+rw /var/run
 RUN chmod gu+s /usr/sbin/cron
 
 RUN a2enmod rewrite
+RUN a2enmod ssl && a2enmod socache_shmcb
 
 RUN mkdir /var/www/.composer
 RUN mkdir -p /var/www/.cache/composer
