@@ -1,7 +1,3 @@
-# SSL
-apache/ssl/mycert.crt
-apache/ssl/mycert.key
-
 # OS generated files #
 ######################
 .DS_Store
