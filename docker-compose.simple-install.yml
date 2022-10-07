@@ -21,7 +21,7 @@ services:
     image: ghcr.io/eramba/eramba:latest
     ports:
       - 8080:80
-#      - 8443:443
+      - 8443:443
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
