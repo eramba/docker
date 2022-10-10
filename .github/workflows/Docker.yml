@@ -188,7 +188,7 @@ jobs:
         with:
           context: eramba
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          file: eramba/app/upgrade/vendor/eramba/docker/Dockerfile
+          file: eramba/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
           target: eramba
           labels: ${{ steps.meta.outputs.labels }}

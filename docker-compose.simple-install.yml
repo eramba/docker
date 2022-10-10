@@ -27,6 +27,7 @@ services:
       - app:/var/www/eramba
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
+      - ./apache/vhost.conf:/etc/apache2/sites-available/000-default.conf
     env_file:
       - main.env
     links:
