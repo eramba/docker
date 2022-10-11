@@ -20,6 +20,10 @@ RUN apt-get update && apt-get install -y rsync
 # Setup vhost
 COPY app/upgrade/vendor/eramba/docker/apache/vhost.conf /etc/apache2/sites-available/000-default.conf
 
+# Copy keys
+COPY app/upgrade/vendor/eramba/docker/apache/ssl/mycert.crt /etc/ssl/certs/mycert.crt
+COPY app/upgrade/vendor/eramba/docker/apache/ssl/mycert.key /etc/ssl/private/mycert.key
+
 # Setup php
 COPY app/upgrade/vendor/eramba/docker/php/php.ini /usr/local/etc/php/php.ini
 
