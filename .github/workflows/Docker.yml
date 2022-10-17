@@ -129,11 +129,11 @@ jobs:
 
       - name: Wait for apache to start
         timeout-minutes: 5
-        run: while ! `curl -v -o /dev/null http://localhost:8080`; do printf 'Waiting for Apache...\n'; sleep 2; done;
+        run: while ! `docker exec -w /var/www/eramba/app/upgrade -u www-data eramba curl -v -o /dev/null http://localhost:80`; do printf 'Waiting for Apache...\n'; sleep 2; done;
 
       - name: HTTP Check
         run: |
-          if curl -w '%{http_code}\n' -o /dev/null --silent  http://localhost:8080/settings/test-public-address | grep 204; then
+          if curl -w '%{http_code}\n' -o /dev/null --silent --insecure https://localhost:8443/settings/test-public-address | grep 204; then
             exit 0
           else
             exit 1
