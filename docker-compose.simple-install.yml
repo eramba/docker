@@ -43,6 +43,7 @@ services:
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
+      - ./main.env:/var/www/eramba/app/upgrade/vendor/eramba/docker/main.env
     env_file:
       - main.env
     links:
