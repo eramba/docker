@@ -9,10 +9,10 @@ services:
       - ./mysql/conf.d:/etc/mysql/conf.d
       - ./mysql/entrypoint:/docker-entrypoint-initdb.d
     environment:
-      MYSQL_DATABASE: docker
-      MYSQL_USER: docker
-      MYSQL_PASSWORD: docker
-      MYSQL_ROOT_PASSWORD: docker
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
   redis:
     container_name: redis
     image: redis:6.0.16-alpine
@@ -28,8 +28,14 @@ services:
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
       - ./apache/vhost-with-ssl.conf:/etc/apache2/sites-available/000-default.conf
-    env_file:
-      - main.env
+      - ./crontab/crontab:/etc/cron.d/eramba-crontab
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_URL: ${CACHE_URL}
+      HTTP_HOST: ${HTTP_HOST}
     links:
       - mysql
       - redis
@@ -43,9 +49,14 @@ services:
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
-      - ./main.env:/var/www/eramba/app/upgrade/vendor/eramba/docker/main.env
-    env_file:
-      - main.env
+      - ./crontab/crontab:/etc/cron.d/eramba-crontab
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_DATABASE: ${DB_DATABASE}
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      CACHE_URL: ${CACHE_URL}
+      HTTP_HOST: ${HTTP_HOST}
     links:
       - mysql
       - redis
