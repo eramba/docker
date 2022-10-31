@@ -20,11 +20,11 @@ log_bin_trust_function_creators=OFF
 log_bin=OFF
 bind-address=0.0.0.0
 
-# performance config
-performance_schema=ON
-performance-schema-instrument='statement/%=ON'
-performance-schema-consumer-statements-digest=ON
-innodb_monitor_enable=all
+# performance config - uncomment if you need "performance_schema" monitoring
+#performance_schema=ON
+#performance-schema-instrument='statement/%=ON'
+#performance-schema-consumer-statements-digest=ON
+#innodb_monitor_enable=all
 
 [mysql]
 
