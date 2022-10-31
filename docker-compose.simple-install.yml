@@ -20,7 +20,6 @@ services:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
     ports:
-      - 8080:80
       - 8443:443
     volumes:
       - data:/var/www/eramba/app/upgrade/data
