@@ -35,6 +35,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
       HTTP_HOST: ${HTTP_HOST}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
     links:
       - mysql
       - redis
@@ -57,6 +58,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
       HTTP_HOST: ${HTTP_HOST}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
     links:
       - mysql
       - redis
