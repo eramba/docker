@@ -36,6 +36,12 @@ services:
       CACHE_URL: ${CACHE_URL}
       HTTP_HOST: ${HTTP_HOST}
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
     links:
       - mysql
       - redis
@@ -59,6 +65,12 @@ services:
       CACHE_URL: ${CACHE_URL}
       HTTP_HOST: ${HTTP_HOST}
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
     links:
       - mysql
       - redis
