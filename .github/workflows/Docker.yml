@@ -59,5 +59,13 @@ jobs:
           if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake system_health check; then
             exit 0
           fi
+          
+          exit 1
+
+      - name: Migrations Status Check On CRON Container (to determine if DB connection is working)
+        run: |
+          if docker exec -w /var/www/eramba/app/upgrade -u www-data cron bin/cake migrations status; then
+            exit 0
+          fi
 
           exit 1
