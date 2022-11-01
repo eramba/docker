@@ -1,0 +1,63 @@
+name: Docker
+
+on:
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  simple_install:
+    name: Simple Installation [${{ matrix.build-type }}]
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build-type:
+#          - enterprise
+          - community
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+#
+#      - name: Log in to GitHub Container Registry
+#        uses: docker/login-action@v2
+#        with:
+#          registry: ghcr.io
+#          username: ${{ github.actor }}
+#          password: ${{ secrets.TOKEN_INCREASED_PERMISSIONS }}
+
+      - name: Run Simple Install
+        run: |
+          docker compose -f docker-compose.simple-install.yml down 2>&1
+          docker system prune --force --volumes --all
+          
+          docker compose -f docker-compose.simple-install.yml up -d
+
+      - name: Wait for apache to start
+        timeout-minutes: 5
+        run: while ! `docker exec -w /var/www/eramba/app/upgrade -u www-data eramba curl -v -o /dev/null http://localhost:80`; do printf 'Waiting for Apache...\n'; sleep 2; done;
+
+      - name: HTTP Check
+        run: |
+          if curl -w '%{http_code}\n' -o /dev/null --silent --insecure https://localhost:8443/settings/test-public-address | grep 204; then
+            exit 0
+          else
+            exit 1
+          fi
+
+      - name: CMD Check
+        run: |
+          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake current_config validate; then
+            exit 0
+          fi
+
+          exit 1
+
+      - name: System Health Check
+        run: |
+          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake system_health check; then
+            exit 0
+          fi
+
+          exit 1
