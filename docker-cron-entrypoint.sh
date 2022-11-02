@@ -2,7 +2,6 @@
 
 su -s /bin/bash -c "printenv | grep DB_ > /var/www/eramba/.env" www-data
 su -s /bin/bash -c "printenv | grep CACHE_URL >> /var/www/eramba/.env" www-data
-su -s /bin/bash -c "printenv | grep PUBLIC_ADDRESS >> /var/www/eramba/.env" www-data
 su -s /bin/bash -c "printenv | grep HTTP_HOST >> /var/www/eramba/.env" www-data
 su -s /bin/bash -c "printenv | grep USE_PROXY >> /var/www/eramba/.env" www-data
 su -s /bin/bash -c "printenv | grep PROXY_ >> /var/www/eramba/.env" www-data
