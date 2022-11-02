@@ -20,14 +20,13 @@ services:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
     ports:
-      - 8080:80
       - 8443:443
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
-      - ./apache/vhost-with-ssl.conf:/etc/apache2/sites-available/000-default.conf
+      - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
       DB_HOST: ${DB_HOST}
@@ -35,7 +34,12 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
-      HTTP_HOST: ${HTTP_HOST}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
     links:
       - mysql
       - redis
@@ -57,7 +61,12 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
-      HTTP_HOST: ${HTTP_HOST}
+      USE_PROXY: ${USE_PROXY}
+      PROXY_HOST: ${PROXY_HOST}
+      PROXY_PORT: ${PROXY_PORT}
+      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
+      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
+      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
     links:
       - mysql
       - redis
