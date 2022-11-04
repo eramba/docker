@@ -2,6 +2,9 @@
 
 cd /var/www/eramba || exit
 
+# Run Post Install CMD to generate app_local.php file with unique SALT and other defaults.
+su -s /bin/bash -c "php composer.phar run-script post-install-cmd --no-interaction" www-data
+
 # syncing dir structure into /data folder from /data_template
 su -s /bin/bash -c "rsync -rv app/upgrade/data_template/ app/upgrade/data/" www-data
 
