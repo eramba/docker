@@ -4,6 +4,7 @@ services:
     container_name: mysql
     image: mysql:8.0.28-oracle
     command: ["mysqld", "--disable-log-bin"]
+    restart: always
     volumes:
       - db-data:/var/lib/mysql
       - ./mysql/conf.d:/etc/mysql/conf.d
@@ -16,14 +17,17 @@ services:
   redis:
     container_name: redis
     image: redis:6.0.16-alpine
+    restart: always
   eramba:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
+    restart: always
     ports:
       - 8443:443
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
+      - logs:/var/www/eramba/app/upgrade/logs
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
@@ -51,9 +55,11 @@ services:
     image: ghcr.io/eramba/eramba:latest
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
+    restart: always
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
+      - logs:/var/www/eramba/app/upgrade/logs
       - ./docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
@@ -76,6 +82,7 @@ services:
     depends_on:
       - eramba
 volumes:
-  data:
   app:
+  data:
+  logs:
   db-data:
