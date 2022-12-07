@@ -18,7 +18,7 @@ su -s /bin/bash -c "php app/upgrade/bin/cake.php queue worker end all -q" www-da
 # Either load a clean database if eramba is deployed for the first time
 # or migrate and update to the latest database version if switching to a new/different image, if applicable,
 # otherwise if not possible to update due to broken DB history sync, the process will exit with error.
-su -s /bin/bash -c "php app/upgrade/bin/cake.php database initialize" www-data
+su -s /bin/bash -c "php app/upgrade/bin/cake.php database initialize" www-data || exit
 
 # Lets de-activate maintenance mode
 #su -s /bin/bash -c "php app/upgrade/bin/cake.php setup.maintenance_mode deactivate" www-data
