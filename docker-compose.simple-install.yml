@@ -27,6 +27,7 @@ services:
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
+      - logs:/var/www/eramba/app/upgrade/logs
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
@@ -57,6 +58,7 @@ services:
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
+      - logs:/var/www/eramba/app/upgrade/logs
       - ./docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
@@ -78,6 +80,7 @@ services:
     depends_on:
       - eramba
 volumes:
-  data:
   app:
+  data:
+  logs:
   db-data:
