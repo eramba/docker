@@ -61,6 +61,7 @@ services:
       - logs:/var/www/eramba/app/upgrade/logs
       - ./docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
+      - .env:/var/www/docker.env
     environment:
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
