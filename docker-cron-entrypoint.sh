@@ -1,5 +1,11 @@
 #!/bin/sh
 
-su -s /bin/bash -c "crontab -u www-data /etc/cron.d/eramba-crontab" www-data
+env >> /etc/environment
 
-exec docker-php-entrypoint "$@"
+crontab -u root /etc/cron.d/eramba-crontab
+
+su -s /bin/bash -c "php /var/www/eramba/app/upgrade/bin/cake.php queue worker end all" www-data
+
+# execute CMD
+echo "$@"
+exec "$@"
