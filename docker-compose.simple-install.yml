@@ -31,6 +31,7 @@ services:
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
+      - ./docker-entrypoint.sh:/docker-entrypoint.sh
     environment:
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
