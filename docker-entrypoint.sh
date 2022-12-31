@@ -8,6 +8,9 @@ su -s /bin/bash -c "php composer.phar run-script post-install-cmd --no-interacti
 # syncing dir structure into /data folder from /data_template
 su -s /bin/bash -c "rsync -rv app/upgrade/data_template/ app/upgrade/data/" www-data
 
+# syncing dir structure into /logs folder from /logs_template
+su -s /bin/bash -c "rsync -rv app/upgrade/logs_template/ app/upgrade/logs/" www-data
+
 # when deploying a code or DB migration change and you want the "old workers" based on the old code
 # to not process any new incoming jobs after deployment.
 #su -s /bin/bash -c "php app/upgrade/bin/cake.php queue worker end all -q" www-data
