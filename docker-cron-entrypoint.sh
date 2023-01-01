@@ -2,6 +2,7 @@
 
 env >> /etc/environment
 
+crontab -u www-data -r
 crontab -u root /etc/cron.d/eramba-crontab
 
 # Run Post Install CMD to generate app_local.php file with unique SALT and other defaults.
