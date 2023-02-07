@@ -53,12 +53,13 @@ services:
     container_name: cron
     image: ghcr.io/eramba/eramba:latest
     command: ["cron", "-f", "-L", "2"]
+    entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
       - logs:/var/www/eramba/app/upgrade/logs
-      - ./docker-cron-entrypoint.sh:/docker-entrypoint.sh
+      - ./docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
       DB_HOST: ${DB_HOST}
