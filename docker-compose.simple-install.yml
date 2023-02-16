@@ -44,6 +44,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
     links:
       - mysql
       - redis
@@ -74,6 +75,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
     links:
       - mysql
       - redis
