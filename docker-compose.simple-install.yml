@@ -30,6 +30,7 @@ services:
       - logs:/var/www/eramba/app/upgrade/logs
       - ./apache/ssl/mycert.crt:/etc/ssl/certs/mycert.crt
       - ./apache/ssl/mycert.key:/etc/ssl/private/mycert.key
+      - ./apache/security.conf:/etc/apache2/conf-available/security.conf
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
