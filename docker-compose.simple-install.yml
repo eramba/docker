@@ -34,7 +34,6 @@ services:
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
     environment:
-      SECURITY_SALT: ${SECURITY_SALT}
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
@@ -68,7 +67,6 @@ services:
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
       - .env:/var/www/docker.env
     environment:
-      SECURITY_SALT: ${SECURITY_SALT}
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
