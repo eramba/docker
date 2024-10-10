@@ -2,7 +2,7 @@ version: '3.9'
 services:
   mysql:
     container_name: mysql
-    image: mysql:8.0.28-oracle
+    image: mysql:9.0.1-oracle
     command: ["mysqld", "--disable-log-bin"]
     restart: always
     volumes:
@@ -16,7 +16,7 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
   redis:
     container_name: redis
-    image: redis:6.0.16-alpine
+    image: redis:7.4.1-alpine
     restart: always
   eramba:
     container_name: eramba
