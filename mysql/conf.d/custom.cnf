@@ -8,11 +8,9 @@ innodb_stats_on_metadata=OFF
 binlog_row_image=MINIMAL
 sync_binlog=1
 local_infile=OFF
-master_verify_checksum=ON
+source_verify_checksum=ON
 relay_log_purge=1
-binlog_expire_logs_seconds=604800
-slave_sql_verify_checksum=1
-skip-host-cache
+replica_sql_verify_checksum=1
 skip-name-resolve
 slow_query_log=1
 slow_query_log_file=/tmp/mysql-slow.log
