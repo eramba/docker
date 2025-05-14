@@ -88,6 +88,12 @@ services:
       - eramba
     depends_on:
       - eramba
+  pdf-generator:
+    container_name: pdf-generator
+    image: ghcr.io/eramba/pdf-generator:latest
+    restart: always
+    ports:
+      - "8000:8000"
 volumes:
   app:
   data:
