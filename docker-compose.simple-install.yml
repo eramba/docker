@@ -20,7 +20,7 @@ services:
     restart: always
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba:latest
+    image: ghcr.io/eramba/eramba:pr-5135
     restart: always
     ports:
       - 8443:443
@@ -56,7 +56,7 @@ services:
       - mysql
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba:latest
+    image: ghcr.io/eramba/eramba:pr-5135
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
