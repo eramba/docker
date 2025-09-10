@@ -1,4 +1,3 @@
-version: '3.9'
 services:
   eramba:
     image: ghcr.io/eramba/eramba-enterprise:latest
