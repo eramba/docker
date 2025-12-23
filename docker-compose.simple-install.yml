@@ -91,11 +91,8 @@ services:
       - eramba
   triggers_caddy:
     image: ghcr.io/eramba/eramba-triggers:pr-5480
-    volumes:
-      - triggers-storage:/tmp/eramba_triggers_storage
 volumes:
   app:
   data:
   logs:
   db-data:
-  triggers-storage:
