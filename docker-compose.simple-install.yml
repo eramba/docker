@@ -19,7 +19,7 @@ services:
     restart: always
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba:latest
+    image: ghcr.io/eramba/eramba-enterprise:pr-5480
     restart: always
     ports:
       - 8443:443
@@ -48,6 +48,7 @@ services:
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
+      DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
     links:
       - mysql
       - redis
@@ -55,7 +56,7 @@ services:
       - mysql
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba:latest
+    image: ghcr.io/eramba/eramba-enterprise:pr-5480
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -81,6 +82,7 @@ services:
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
+      DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
     links:
       - mysql
       - redis
