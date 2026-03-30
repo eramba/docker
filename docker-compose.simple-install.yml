@@ -27,7 +27,7 @@ services:
       - app_internal
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba-enterprise:pr-5573
+    image: ghcr.io/eramba/eramba-enterprise:pr-5668
     restart: always
     ports:
       - 8443:443
@@ -73,7 +73,7 @@ services:
       - triggers_net
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba-enterprise:pr-5573
+    image: ghcr.io/eramba/eramba-enterprise:pr-5668
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -111,7 +111,7 @@ services:
       - app_internal
       - triggers_net
   triggers_caddy:
-    image: ghcr.io/eramba/eramba-triggers:pr-5573
+    image: ghcr.io/eramba/eramba-triggers:pr-5668
     container_name: triggers_caddy
     volumes:
       - trigger-logs:/var/log/trigger-limits
