@@ -27,7 +27,7 @@ services:
       - app_internal
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba-enterprise:pr-5668
+    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes
     restart: always
     ports:
       - 8443:443
@@ -55,7 +55,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
-      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
@@ -73,7 +73,7 @@ services:
       - triggers_net
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba-enterprise:pr-5668
+    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -97,7 +97,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
-      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
@@ -111,8 +111,10 @@ services:
       - app_internal
       - triggers_net
   triggers_caddy:
-    image: ghcr.io/eramba/eramba-triggers:pr-5668
+    image: ghcr.io/eramba/eramba-triggers:martin-automation-security-fixes
     container_name: triggers_caddy
+    entrypoint:
+      - /app/iptables-entrypoint.sh
     volumes:
       - trigger-logs:/var/log/trigger-limits
       - trigger-storage:/data/eramba_trigger_storage
@@ -120,7 +122,7 @@ services:
       - eramba
     environment:
       CRON_HOST: cron
-      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
     cap_add:
       - NET_ADMIN
     networks:
