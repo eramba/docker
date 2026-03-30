@@ -55,6 +55,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
@@ -96,6 +97,7 @@ services:
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       DISABLE_LICENSE_BLOCKING: ${DISABLE_LICENSE_BLOCKING}
@@ -107,11 +109,18 @@ services:
       - eramba
     networks:
       - app_internal
+      - triggers_net
   triggers_caddy:
     image: ghcr.io/eramba/eramba-triggers:pr-5573
     container_name: triggers_caddy
+    volumes:
+      - trigger-logs:/var/log/trigger-limits
+      - trigger-storage:/data/eramba_trigger_storage
     depends_on:
       - eramba
+    environment:
+      CRON_HOST: cron
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET:-${SECURITY_SALT}}
     cap_add:
       - NET_ADMIN
     networks:
