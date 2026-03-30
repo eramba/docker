@@ -1,5 +1,5 @@
 services:
   eramba:
-    image: ghcr.io/eramba/eramba-enterprise:latest
+    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes
   cron:
-    image: ghcr.io/eramba/eramba-enterprise:latest
+    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes

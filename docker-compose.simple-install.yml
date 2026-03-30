@@ -24,7 +24,7 @@ services:
       - app_internal
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes
+    image: ghcr.io/eramba/eramba:martin-automation-security-fixes
     restart: always
     ports:
       - 8443:443
@@ -65,7 +65,7 @@ services:
       - triggers_net
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba-enterprise:martin-automation-security-fixes
+    image: ghcr.io/eramba/eramba:martin-automation-security-fixes
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
