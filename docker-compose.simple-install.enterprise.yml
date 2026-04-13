@@ -1,5 +1,5 @@
 services:
   eramba:
-    image: ghcr.io/eramba/eramba-enterprise:martin-mcp
+    image: ghcr.io/eramba/eramba-enterprise:3.x
   cron:
-    image: ghcr.io/eramba/eramba-enterprise:martin-mcp
+    image: ghcr.io/eramba/eramba-enterprise:3.x
