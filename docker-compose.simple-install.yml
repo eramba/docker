@@ -155,6 +155,22 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+  public_proxy:
+    container_name: public_proxy
+    image: caddy:2.8-alpine
+    ports:
+      - 8088:80
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    environment:
+      MCP_UPSTREAM: mcp_server:3000
+      ERAMBA_UPSTREAM: https://eramba:443
+    depends_on:
+      - eramba
+      - mcp_server
+    networks:
+      - app_internal
+      - host_access
 volumes:
   app:
   data:
