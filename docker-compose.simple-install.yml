@@ -24,7 +24,7 @@ services:
       - app_internal
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba:3.x
+    image: ghcr.io/eramba/eramba:martin-plan-setup-upgrades
     restart: always
     ports:
       - 8443:443
@@ -65,7 +65,7 @@ services:
       - triggers_net
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba:3.x
+    image: ghcr.io/eramba/eramba:martin-plan-setup-upgrades
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -102,7 +102,7 @@ services:
       - app_internal
       - triggers_net
   triggers_caddy:
-    image: ghcr.io/eramba/eramba-triggers:3.x
+    image: ghcr.io/eramba/eramba-triggers:martin-plan-setup-upgrades
     container_name: triggers_caddy
     entrypoint:
       - /app/iptables-entrypoint.sh
@@ -120,6 +120,37 @@ services:
       - triggers_net
     healthcheck:
       test: ["CMD-SHELL", "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9001/health | grep -q '^200$'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+  mcp_server:
+    image: ghcr.io/eramba/eramba-mcp-server:martin-plan-setup-upgrades
+    container_name: mcp_server
+    restart: always
+    ports:
+      - 13000:3000
+    depends_on:
+      - eramba
+    environment:
+      MCP_TRANSPORT: http
+      PORT: 3000
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:13000}
+      MCP_RESOURCE: ${MCP_RESOURCE:-http://localhost:13000/mcp}
+      ERAMBA_BASE_URL: https://eramba
+      ERAMBA_OAUTH_ISSUER: ${OAUTH2_ISSUER:-${PUBLIC_ADDRESS}}
+      ERAMBA_OAUTH_INTROSPECTION_URL: ${ERAMBA_OAUTH_INTROSPECTION_URL:-https://eramba/oauth2/introspect}
+      ERAMBA_OAUTH_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:-}
+      ERAMBA_OAUTH_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:-}
+      MCP_REQUIRED_SCOPE: ${OAUTH2_SCOPE:-eramba.full_access}
+      ERAMBA_INSECURE_TLS: 1
+      ERAMBA_REQUEST_TIMEOUT_MS: 15000
+    networks:
+      - app_internal
+      - host_access
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/openapi.json').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
       interval: 30s
       timeout: 5s
       retries: 3
