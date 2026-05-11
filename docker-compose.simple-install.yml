@@ -17,6 +17,8 @@ services:
     container_name: redis
     image: redis:7.4.2-alpine
     restart: always
+    volumes:
+      - redis-data:/data
   eramba:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
@@ -92,3 +94,4 @@ volumes:
   data:
   logs:
   db-data:
+  redis-data:
