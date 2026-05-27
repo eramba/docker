@@ -13,10 +13,15 @@ services:
       MYSQL_USER: ${DB_USERNAME}
       MYSQL_PASSWORD: ${DB_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    networks:
+      - app_internal
+      - host_access
   redis:
     container_name: redis
     image: redis:7.4.2-alpine
     restart: always
+    networks:
+      - app_internal
   eramba:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
@@ -33,19 +38,21 @@ services:
       - ./apache/ports.conf:/etc/apache2/ports.conf
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
+      - trigger-logs:/var/log/trigger-limits
     environment:
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
       USE_PROXY: ${USE_PROXY}
       PROXY_HOST: ${PROXY_HOST}
       PROXY_PORT: ${PROXY_PORT}
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
-      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
     links:
@@ -53,6 +60,9 @@ services:
       - redis
     depends_on:
       - mysql
+    networks:
+      - app_internal
+      - triggers_net
   cron:
     container_name: cron
     image: ghcr.io/eramba/eramba:latest
@@ -72,13 +82,14 @@ services:
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
+      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
       USE_PROXY: ${USE_PROXY}
       PROXY_HOST: ${PROXY_HOST}
       PROXY_PORT: ${PROXY_PORT}
       USE_PROXY_AUTH: ${USE_PROXY_AUTH}
       PROXY_AUTH_USER: ${PROXY_AUTH_USER}
       PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
-      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
     links:
@@ -87,8 +98,41 @@ services:
       - eramba
     depends_on:
       - eramba
+    networks:
+      - app_internal
+      - triggers_net
+  triggers_caddy:
+    image: ghcr.io/eramba/eramba-triggers:latest
+    container_name: triggers_caddy
+    entrypoint:
+      - /app/iptables-entrypoint.sh
+    volumes:
+      - trigger-logs:/var/log/trigger-limits
+      - trigger-storage:/data/eramba_trigger_storage
+    depends_on:
+      - eramba
+    environment:
+      CRON_HOST: cron
+      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - triggers_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9001/health | grep -q '^200$'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 volumes:
   app:
   data:
   logs:
   db-data:
+  trigger-logs:
+  trigger-storage:
+networks:
+  app_internal:
+    internal: true
+  triggers_net:
+  host_access:
