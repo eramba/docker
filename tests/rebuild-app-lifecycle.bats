@@ -87,7 +87,7 @@ assert_post_boundary_failure() {
   [ "$status" -eq 0 ]
   grep -Fx 'ERAMBA_IMAGE_TAG=3.30.1-6' "$REBUILD_APP_ENV_FILE"
   grep -Fx 'DB_PASSWORD=must-not-appear-in-output' "$REBUILD_APP_ENV_FILE"
-  [ "$(stat -f '%Lp' "$REBUILD_APP_ENV_FILE")" = 640 ]
+  [ "$(mode_of "$REBUILD_APP_ENV_FILE")" = 640 ]
 }
 
 @test "atomic env update refuses duplicate exact keys" {
@@ -150,9 +150,9 @@ assert_post_boundary_failure() {
   grep -Fx 'current_image_id=sha256:current' "$run_dir/state.txt"
   grep -Fx 'target_image_id=sha256:target' "$run_dir/state.txt"
   ! grep -R -F 'must-not-appear-in-output' "$run_dir"
-  [ "$(stat -f '%Lp' "$run_dir")" = 700 ]
+  [ "$(mode_of "$run_dir")" = 700 ]
   while IFS= read -r file; do
-    [ "$(stat -f '%Lp' "$file")" = 600 ]
+    [ "$(mode_of "$file")" = 600 ]
   done < <(find "$run_dir" -type f)
 }
 

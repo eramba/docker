@@ -30,6 +30,10 @@ assert_log_contains() {
   grep -F -- "$1" "${FAKE_COMMAND_LOG}"
 }
 
+mode_of() {
+  stat -f '%Lp' "$1" 2>/dev/null || stat -c '%a' "$1"
+}
+
 install_fake_docker() {
   cat >"${FAKE_BIN_DIR}/docker" <<'FAKE_DOCKER'
 #!/usr/bin/env bash
