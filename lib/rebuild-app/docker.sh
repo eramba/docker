@@ -119,3 +119,74 @@ validate_target_image() {
   [[ "$target_version" == "$TARGET_APP_VERSION" ]] || \
     die "Target application version does not match the plan."
 }
+
+volume_name_at_destination() {
+  local container=$1
+  local destination=$2
+  local template
+  local name
+
+  [[ "$destination" == /* && "$destination" != *'"'* ]] || \
+    die "Invalid mount destination: ${destination}"
+  template="{{range .Mounts}}{{if eq .Destination \"${destination}\"}}{{println .Name}}{{end}}{{end}}"
+  name=$(docker inspect --format "$template" "$container") || \
+    die "Unable to inspect ${container} mount at ${destination}."
+  name=${name%$'\n'}
+  [[ -n "$name" && "$name" != *$'\n'* ]] || \
+    die "Expected exactly one named volume for ${container}:${destination}."
+  printf '%s\n' "$name"
+}
+
+volume_identity() {
+  local container=$1
+  local destination=$2
+  local name
+  local created_at
+
+  name=$(volume_name_at_destination "$container" "$destination")
+  created_at=$(docker volume inspect --format '{{.CreatedAt}}' "$name") || \
+    die "Unable to inspect Docker volume: ${name}"
+  [[ -n "$created_at" ]] || die "Docker volume has no creation identity: ${name}"
+  printf '%s|%s\n' "$name" "$created_at"
+}
+
+snapshot_volume_identities() {
+  APP_VOLUME_IDENTITY=$(volume_identity eramba /var/www/eramba)
+  DATA_VOLUME_IDENTITY=$(volume_identity eramba /var/www/eramba/app/upgrade/data)
+  LOGS_VOLUME_IDENTITY=$(volume_identity eramba /var/www/eramba/app/upgrade/logs)
+  DB_VOLUME_IDENTITY=$(volume_identity mysql /var/lib/mysql)
+  TRIGGER_STORAGE_VOLUME_IDENTITY=$(volume_identity triggers_caddy /data/eramba_trigger_storage)
+  APP_VOLUME_NAME=${APP_VOLUME_IDENTITY%%|*}
+}
+
+stop_application_services() {
+  local service
+  for service in triggers_caddy cron eramba; do
+    compose stop "$service"
+    compose rm -f "$service"
+  done
+}
+
+remove_verified_app_volume() {
+  local current_identity
+  local current_name
+
+  current_identity=$(volume_identity eramba /var/www/eramba)
+  current_name=${current_identity%%|*}
+  [[ "$current_name" == "$APP_VOLUME_NAME" ]] || \
+    die "Application volume changed after preflight; refusing deletion."
+  docker volume rm -- "$APP_VOLUME_NAME" || die "Unable to remove application volume: ${APP_VOLUME_NAME}"
+}
+
+recover_before_migration() {
+  local recovered=1
+
+  restore_image_tag || recovered=0
+  compose up -d eramba cron triggers_caddy || recovered=0
+  if ((recovered)); then
+    log "Pre-migration recovery succeeded; the previous image tag and application services were restored."
+  else
+    log "Pre-migration recovery failed; operator intervention is required."
+  fi
+  return 0
+}

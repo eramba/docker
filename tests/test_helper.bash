@@ -45,6 +45,31 @@ args=" $* "
 
 if [[ "$1" == inspect && "$args" == *".State.Running"* ]]; then
   printf '%s\n' "${FAKE_ERAMBA_RUNNING:-true}"
+elif [[ "$1" == inspect && "$args" == *".Mounts"* ]]; then
+  container="${!#}"
+  if [[ "$args" == *"/var/www/eramba/app/upgrade/data"* ]]; then
+    printf '%s\n' data-volume
+  elif [[ "$args" == *"/var/www/eramba/app/upgrade/logs"* ]]; then
+    printf '%s\n' logs-volume
+  elif [[ "$args" == *"/var/lib/mysql"* ]]; then
+    printf '%s\n' db-volume
+  elif [[ "$args" == *"/data/eramba_trigger_storage"* ]]; then
+    printf '%s\n' trigger-storage-volume
+  elif [[ "$args" == *"/var/www/eramba"* ]]; then
+    counter_file="${TEST_TMPDIR}/app-volume-reads"
+    count=0
+    [[ ! -f "$counter_file" ]] || count=$(<"$counter_file")
+    count=$((count + 1))
+    printf '%s\n' "$count" >"$counter_file"
+    if [[ "${FAKE_CHANGED_APP_VOLUME:-0}" == 1 && "$count" -gt 1 ]]; then
+      printf '%s\n' unexpected-app-volume
+    else
+      printf '%s\n' app-volume
+    fi
+  else
+    printf 'Unknown mount query for %s: %s\n' "$container" "$*" >&2
+    exit 97
+  fi
 elif [[ "$1" == inspect && "$args" == *".Config.Image"* ]]; then
   printf '%s\n' "${FAKE_CURRENT_IMAGE:-ghcr.io/eramba/eramba:3.30.0-23}"
 elif [[ "$1" == exec && "$args" == *" image_switch_plan "* ]]; then
@@ -85,7 +110,19 @@ elif [[ "$1" == cp ]]; then
   printf '%s\n' "${FAKE_TARGET_APP_VERSION:-3.30.1}" >"$destination"
 elif [[ "$1" == rm && "${2:-}" == -f ]]; then
   exit 0
+elif [[ "$1" == volume && "$2" == inspect ]]; then
+  volume_name="${!#}"
+  printf '%s-created\n' "$volume_name"
+elif [[ "$1" == volume && "$2" == rm ]]; then
+  exit "${FAKE_VOLUME_RM_STATUS:-0}"
 elif [[ "$1" == compose ]]; then
+  if [[ "$args" == *" stop "* ]]; then
+    current_tag=$(awk -F= '$1 == "ERAMBA_IMAGE_TAG" { print substr($0, index($0, "=") + 1) }' "$REBUILD_APP_ENV_FILE")
+    printf 'observed-tag-before-stop %s\n' "$current_tag" >>"${FAKE_COMMAND_LOG}"
+  fi
+  if [[ -n "${FAKE_FAIL_MATCH:-}" && "$args" == *"${FAKE_FAIL_MATCH}"* ]]; then
+    exit 42
+  fi
   exit 0
 else
   printf 'Unexpected fake docker call: %s\n' "$*" >&2
@@ -97,6 +134,15 @@ FAKE_DOCKER
 
 set_required_community_plan() {
   export FAKE_PLAN_JSON='{"required":true,"source_app_version":"3.30.0","target_app_version":"3.30.1","current_image_tag":"3.30.0-23","target_image_tag":"3.30.1-6","edition":"community","distribution":"registry"}'
+}
+
+write_current_env() {
+  cat >"${REBUILD_APP_ENV_FILE}" <<'ENV'
+DB_PASSWORD=must-not-appear-in-output
+ERAMBA_IMAGE_TAG=3.30.0-23
+PUBLIC_ADDRESS=https://example.test
+ENV
+  chmod 640 "${REBUILD_APP_ENV_FILE}"
 }
 
 assert_preflight_pure() {

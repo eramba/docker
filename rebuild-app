@@ -71,8 +71,22 @@ ENV_FILE="${REBUILD_APP_ENV_FILE:-${ROOT_DIR}/.env}"
 [[ -f "$ENV_FILE" ]] || die "Missing deployment environment file: ${ENV_FILE}"
 command -v docker >/dev/null 2>&1 || die "docker is required."
 
+PHASE=preflight
+ENV_MUTATED=0
+
+handle_exit() {
+  local exit_status=$?
+  trap - EXIT INT TERM
+  if ((exit_status != 0)) && [[ "$PHASE" == mutating ]]; then
+    recover_before_migration
+  fi
+  release_lock
+  exit "$exit_status"
+}
+
 acquire_lock
-trap release_lock EXIT INT TERM
+trap handle_exit EXIT
+trap 'exit 130' INT TERM
 
 detect_installation
 validate_delivery_options
@@ -86,13 +100,29 @@ fi
 
 acquire_target_image
 validate_target_image
+snapshot_volume_identities
 
 log "Current: ${CURRENT_IMAGE} (application ${CURRENT_APP_VERSION})"
 log "Target:  ${TARGET_IMAGE} (application ${TARGET_APP_VERSION})"
+log "Application volume to replace: ${APP_VOLUME_NAME}"
+log "Preserved volumes: ${DATA_VOLUME_IDENTITY%%|*}, ${LOGS_VOLUME_IDENTITY%%|*}, ${DB_VOLUME_IDENTITY%%|*}, ${TRIGGER_STORAGE_VOLUME_IDENTITY%%|*}"
 
 if ((DRY_RUN)); then
   log "Dry run complete; no deployment state changed."
   exit 0
 fi
 
-die "Deployment mutation is not implemented yet."
+if ((!ASSUME_YES)); then
+  read -r -p "Proceed with this deployment plan? Type yes: " plan_confirmation
+  [[ "$plan_confirmation" == yes ]] || die "Deployment plan was not confirmed."
+  read -r -p "Confirm a current recoverable backup exists. Type yes: " backup_confirmation
+  [[ "$backup_confirmation" == yes ]] || die "A current recoverable backup was not confirmed."
+fi
+
+create_run_directory
+PHASE=mutating
+atomic_set_env ERAMBA_IMAGE_TAG "$TARGET_IMAGE_TAG"
+stop_application_services
+remove_verified_app_volume
+
+die "Staged target startup is not implemented yet."
