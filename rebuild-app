@@ -4,6 +4,10 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/rebuild-app/common.sh
 source "${ROOT_DIR}/lib/rebuild-app/common.sh"
+# shellcheck source=lib/rebuild-app/plan.sh
+source "${ROOT_DIR}/lib/rebuild-app/plan.sh"
+# shellcheck source=lib/rebuild-app/docker.sh
+source "${ROOT_DIR}/lib/rebuild-app/docker.sh"
 
 EDITION=""
 IMAGE_FILE=""
@@ -63,4 +67,32 @@ fi
 
 export EDITION IMAGE_FILE UPDATE_REPO DRY_RUN ASSUME_YES BACKUP_CONFIRMED
 
-die "Rebuild preflight is not implemented yet."
+ENV_FILE="${REBUILD_APP_ENV_FILE:-${ROOT_DIR}/.env}"
+[[ -f "$ENV_FILE" ]] || die "Missing deployment environment file: ${ENV_FILE}"
+command -v docker >/dev/null 2>&1 || die "docker is required."
+
+acquire_lock
+trap release_lock EXIT INT TERM
+
+detect_installation
+validate_delivery_options
+compose config >/dev/null || die "Docker Compose configuration is invalid."
+resolve_plan
+
+if [[ "$PLAN_REQUIRED" == false ]]; then
+  log "nothing to do"
+  exit 0
+fi
+
+acquire_target_image
+validate_target_image
+
+log "Current: ${CURRENT_IMAGE} (application ${CURRENT_APP_VERSION})"
+log "Target:  ${TARGET_IMAGE} (application ${TARGET_APP_VERSION})"
+
+if ((DRY_RUN)); then
+  log "Dry run complete; no deployment state changed."
+  exit 0
+fi
+
+die "Deployment mutation is not implemented yet."
