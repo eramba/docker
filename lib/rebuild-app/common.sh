@@ -106,3 +106,36 @@ create_run_directory() {
   mkdir -m 700 "$RUN_DIR" || die "Unable to create rebuild run directory."
   chmod 700 "$RUN_DIR"
 }
+
+write_run_state() {
+  local outcome=$1
+  local exit_status=$2
+  local failed_step=${3:-none}
+  local state_file
+
+  [[ -n "${RUN_DIR:-}" ]] || return 0
+  state_file="${RUN_DIR}/state.txt"
+  {
+    printf 'outcome=%s\n' "$outcome"
+    printf 'phase=%s\n' "${PHASE:-unknown}"
+    printf 'failed_step=%s\n' "$failed_step"
+    printf 'exit_status=%s\n' "$exit_status"
+    printf 'current_image=%s\n' "${CURRENT_IMAGE:-unknown}"
+    printf 'current_image_id=%s\n' "${CURRENT_IMAGE_ID:-unknown}"
+    printf 'current_app_version=%s\n' "${CURRENT_APP_VERSION:-unknown}"
+    printf 'target_image=%s\n' "${TARGET_IMAGE:-unknown}"
+    printf 'target_image_id=%s\n' "${TARGET_IMAGE_ID:-unknown}"
+    printf 'target_app_version=%s\n' "${TARGET_APP_VERSION:-unknown}"
+    printf 'app_volume_before=%s\n' "${APP_VOLUME_IDENTITY:-unknown}"
+    printf 'data_volume_before=%s\n' "${DATA_VOLUME_IDENTITY:-unknown}"
+    printf 'logs_volume_before=%s\n' "${LOGS_VOLUME_IDENTITY:-unknown}"
+    printf 'db_volume_before=%s\n' "${DB_VOLUME_IDENTITY:-unknown}"
+    printf 'trigger_storage_before=%s\n' "${TRIGGER_STORAGE_VOLUME_IDENTITY:-unknown}"
+    printf 'app_volume_after=%s\n' "${FINAL_APP_VOLUME_IDENTITY:-unknown}"
+    printf 'data_volume_after=%s\n' "${FINAL_DATA_VOLUME_IDENTITY:-unknown}"
+    printf 'logs_volume_after=%s\n' "${FINAL_LOGS_VOLUME_IDENTITY:-unknown}"
+    printf 'db_volume_after=%s\n' "${FINAL_DB_VOLUME_IDENTITY:-unknown}"
+    printf 'trigger_storage_after=%s\n' "${FINAL_TRIGGER_STORAGE_VOLUME_IDENTITY:-unknown}"
+  } >"$state_file"
+  chmod 600 "$state_file"
+}

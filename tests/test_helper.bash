@@ -45,23 +45,51 @@ args=" $* "
 
 if [[ "$1" == inspect && "$args" == *".State.Running"* ]]; then
   printf '%s\n' "${FAKE_ERAMBA_RUNNING:-true}"
+elif [[ "$1" == inspect && "$args" == *".State.Health.Status"* ]]; then
+  printf '%s\n' "${FAKE_TRIGGER_HEALTH:-healthy}"
 elif [[ "$1" == inspect && "$args" == *".Mounts"* ]]; then
   container="${!#}"
+  if [[ "$container" == eramba && -f "${TEST_TMPDIR}/eramba-removed" ]]; then
+    printf 'No such container: eramba\n' >&2
+    exit 1
+  fi
   if [[ "$args" == *"/var/www/eramba/app/upgrade/data"* ]]; then
-    printf '%s\n' data-volume
+    if [[ -f "${TEST_TMPDIR}/target-started" && "${FAKE_CHANGED_PRESERVED_VOLUME:-}" == data ]]; then
+      printf '%s\n' changed-data-volume
+    else
+      printf '%s\n' data-volume
+    fi
   elif [[ "$args" == *"/var/www/eramba/app/upgrade/logs"* ]]; then
-    printf '%s\n' logs-volume
+    if [[ -f "${TEST_TMPDIR}/target-started" && "${FAKE_CHANGED_PRESERVED_VOLUME:-}" == logs ]]; then
+      printf '%s\n' changed-logs-volume
+    else
+      printf '%s\n' logs-volume
+    fi
   elif [[ "$args" == *"/var/lib/mysql"* ]]; then
-    printf '%s\n' db-volume
+    if [[ -f "${TEST_TMPDIR}/target-started" && "${FAKE_CHANGED_PRESERVED_VOLUME:-}" == db ]]; then
+      printf '%s\n' changed-db-volume
+    else
+      printf '%s\n' db-volume
+    fi
   elif [[ "$args" == *"/data/eramba_trigger_storage"* ]]; then
-    printf '%s\n' trigger-storage-volume
+    if [[ -f "${TEST_TMPDIR}/target-started" && "${FAKE_CHANGED_PRESERVED_VOLUME:-}" == trigger ]]; then
+      printf '%s\n' changed-trigger-storage-volume
+    else
+      printf '%s\n' trigger-storage-volume
+    fi
   elif [[ "$args" == *"/var/www/eramba"* ]]; then
     counter_file="${TEST_TMPDIR}/app-volume-reads"
     count=0
     [[ ! -f "$counter_file" ]] || count=$(<"$counter_file")
     count=$((count + 1))
     printf '%s\n' "$count" >"$counter_file"
-    if [[ "${FAKE_CHANGED_APP_VOLUME:-0}" == 1 && "$count" -gt 1 ]]; then
+    if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+      if [[ "${FAKE_APP_VOLUME_REUSED:-0}" == 1 ]]; then
+        printf '%s\n' app-volume
+      else
+        printf '%s\n' new-app-volume
+      fi
+    elif [[ "${FAKE_CHANGED_APP_VOLUME:-0}" == 1 && "$count" -gt 1 ]]; then
       printf '%s\n' unexpected-app-volume
     else
       printf '%s\n' app-volume
@@ -71,7 +99,12 @@ elif [[ "$1" == inspect && "$args" == *".Mounts"* ]]; then
     exit 97
   fi
 elif [[ "$1" == inspect && "$args" == *".Config.Image"* ]]; then
-  printf '%s\n' "${FAKE_CURRENT_IMAGE:-ghcr.io/eramba/eramba:3.30.0-23}"
+  container="${!#}"
+  if [[ -f "${TEST_TMPDIR}/target-started" && ( "$container" == eramba || "$container" == cron ) ]]; then
+    printf '%s\n' "${FAKE_TARGET_IMAGE:-ghcr.io/eramba/eramba:3.30.1-6}"
+  else
+    printf '%s\n' "${FAKE_CURRENT_IMAGE:-ghcr.io/eramba/eramba:3.30.0-23}"
+  fi
 elif [[ "$1" == exec && "$args" == *" image_switch_plan "* ]]; then
   if [[ -n "${FAKE_PLAN_JSON:-}" ]]; then
     printf '%s\n' "$FAKE_PLAN_JSON"
@@ -90,7 +123,19 @@ try:
 except Exception:
     raise SystemExit(2)' "$field"
 elif [[ "$1" == exec && "$args" == *" cat /var/www/eramba/app/upgrade/VERSION "* ]]; then
-  printf '%s\n' "${FAKE_CURRENT_APP_VERSION:-3.30.0}"
+  if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+    printf '%s\n' "${FAKE_RUNNING_TARGET_APP_VERSION:-3.30.1}"
+  else
+    printf '%s\n' "${FAKE_CURRENT_APP_VERSION:-3.30.0}"
+  fi
+elif [[ "$1" == exec && "$args" == *" curl "* ]]; then
+  exit "${FAKE_HTTP_STATUS:-0}"
+elif [[ "$1" == exec && "$args" == *" current_config validate "* ]]; then
+  exit "${FAKE_CONFIG_STATUS:-0}"
+elif [[ "$1" == exec && "$args" == *" system_health check "* ]]; then
+  exit "${FAKE_HEALTH_STATUS:-0}"
+elif [[ "$1" == exec && "$args" == *" migrations status "* ]]; then
+  exit "${FAKE_MIGRATIONS_STATUS:-0}"
 elif [[ "$1" == pull ]]; then
   exit "${FAKE_PULL_STATUS:-0}"
 elif [[ "$1" == load ]]; then
@@ -99,6 +144,13 @@ elif [[ "$1" == image && "$2" == inspect && "$args" == *".Architecture"* ]]; the
   printf '%s\n' "${FAKE_TARGET_ARCH:-amd64}"
 elif [[ "$1" == image && "$2" == inspect && "$args" == *".RepoTags"* ]]; then
   printf '["%s"]\n' "${FAKE_TARGET_REPO_TAG:-ghcr.io/eramba/eramba:3.30.1-6}"
+elif [[ "$1" == image && "$2" == inspect && "$args" == *".Id"* ]]; then
+  image_ref="${!#}"
+  if [[ "$image_ref" == "${FAKE_CURRENT_IMAGE:-ghcr.io/eramba/eramba:3.30.0-23}" ]]; then
+    printf '%s\n' "${FAKE_CURRENT_IMAGE_ID:-sha256:current}"
+  else
+    printf '%s\n' "${FAKE_TARGET_IMAGE_ID:-sha256:target}"
+  fi
 elif [[ "$1" == image && "$2" == inspect ]]; then
   exit "${FAKE_IMAGE_INSPECT_STATUS:-0}"
 elif [[ "$1" == info && "$args" == *".Architecture"* ]]; then
@@ -110,6 +162,9 @@ elif [[ "$1" == cp ]]; then
   printf '%s\n' "${FAKE_TARGET_APP_VERSION:-3.30.1}" >"$destination"
 elif [[ "$1" == rm && "${2:-}" == -f ]]; then
   exit 0
+elif [[ "$1" == logs ]]; then
+  printf 'bounded log for %s\n' "${!#}"
+  exit 0
 elif [[ "$1" == volume && "$2" == inspect ]]; then
   volume_name="${!#}"
   printf '%s-created\n' "$volume_name"
@@ -120,8 +175,21 @@ elif [[ "$1" == compose ]]; then
     current_tag=$(awk -F= '$1 == "ERAMBA_IMAGE_TAG" { print substr($0, index($0, "=") + 1) }' "$REBUILD_APP_ENV_FILE")
     printf 'observed-tag-before-stop %s\n' "$current_tag" >>"${FAKE_COMMAND_LOG}"
   fi
+  if [[ "$args" == *" up -d eramba "* || "$args" == *" up -d eramba" ]]; then
+    rm -f "${TEST_TMPDIR}/eramba-removed"
+    : >"${TEST_TMPDIR}/target-started"
+  fi
+  if [[ "$args" == *" create --no-deps eramba"* ]]; then
+    rm -f "${TEST_TMPDIR}/eramba-removed"
+  fi
+  if [[ "$args" == *" rm -f eramba"* ]]; then
+    : >"${TEST_TMPDIR}/eramba-removed"
+  fi
   if [[ -n "${FAKE_FAIL_MATCH:-}" && "$args" == *"${FAKE_FAIL_MATCH}"* ]]; then
     exit 42
+  fi
+  if [[ "$args" == *" ps "* || "$args" == *" ps" ]]; then
+    printf 'NAME STATUS\neramba running\n'
   fi
   exit 0
 else

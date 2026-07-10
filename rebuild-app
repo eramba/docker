@@ -73,12 +73,23 @@ command -v docker >/dev/null 2>&1 || die "docker is required."
 
 PHASE=preflight
 ENV_MUTATED=0
+ERAMBA_VERIFIED=0
+CRON_VERIFIED=0
+TRIGGERS_VERIFIED=0
+FAILED_STEP=preflight
 
 handle_exit() {
   local exit_status=$?
   trap - EXIT INT TERM
   if ((exit_status != 0)) && [[ "$PHASE" == mutating ]]; then
     recover_before_migration
+    write_run_state recovered "$exit_status" "${FAILED_STEP:-unknown}" || true
+  elif ((exit_status != 0)) && [[ "$PHASE" == migration-boundary ]]; then
+    quiesce_unverified_dependents
+    capture_diagnostics "$exit_status"
+    log "Migration boundary crossed; automatic rollback was not attempted."
+    log "Operator review and, when required, database restore are necessary before recovery."
+    log "Diagnostics: ${RUN_DIR}"
   fi
   release_lock
   exit "$exit_status"
@@ -120,9 +131,21 @@ if ((!ASSUME_YES)); then
 fi
 
 create_run_directory
+write_run_state prepared 0 none
 PHASE=mutating
+FAILED_STEP=write-target-image-tag
 atomic_set_env ERAMBA_IMAGE_TAG "$TARGET_IMAGE_TAG"
+FAILED_STEP=stop-application-services
 stop_application_services
+FAILED_STEP=remove-application-volume
 remove_verified_app_volume
 
-die "Staged target startup is not implemented yet."
+start_and_verify_eramba
+start_and_verify_cron
+start_and_verify_triggers
+verify_final_deployment
+
+PHASE=complete
+FAILED_STEP=none
+write_run_state succeeded 0 none
+log "Rebuild completed successfully."
