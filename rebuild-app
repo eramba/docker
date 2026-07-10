@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/rebuild-app/common.sh
+source "${ROOT_DIR}/lib/rebuild-app/common.sh"
+
+EDITION=""
+IMAGE_FILE=""
+UPDATE_REPO=0
+DRY_RUN=0
+ASSUME_YES=0
+BACKUP_CONFIRMED=0
+
+while (($#)); do
+  case "$1" in
+    --edition)
+      (($# >= 2)) || die "--edition requires community or enterprise"
+      EDITION=$2
+      shift 2
+      ;;
+    --image-file)
+      (($# >= 2)) || die "--image-file requires a path"
+      IMAGE_FILE=$2
+      shift 2
+      ;;
+    --update-repo)
+      UPDATE_REPO=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --yes)
+      ASSUME_YES=1
+      shift
+      ;;
+    --backup-confirmed)
+      BACKUP_CONFIRMED=1
+      shift
+      ;;
+    *)
+      die "Unknown option: $1"
+      ;;
+  esac
+done
+
+[[ -z "$EDITION" || "$EDITION" == community || "$EDITION" == enterprise ]] || \
+  die "--edition must be community or enterprise"
+
+if [[ "$EDITION" == community && -n "$IMAGE_FILE" ]]; then
+  die "--image-file is only valid for enterprise"
+fi
+
+if [[ "$EDITION" == enterprise && -z "$IMAGE_FILE" ]]; then
+  die "--image-file is required for enterprise"
+fi
+
+if ((ASSUME_YES && !DRY_RUN && !BACKUP_CONFIRMED)); then
+  die "--backup-confirmed is required with --yes"
+fi
+
+export EDITION IMAGE_FILE UPDATE_REPO DRY_RUN ASSUME_YES BACKUP_CONFIRMED
+
+die "Rebuild preflight is not implemented yet."
