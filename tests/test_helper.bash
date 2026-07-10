@@ -129,13 +129,25 @@ elif [[ "$1" == exec && "$args" == *" cat /var/www/eramba/app/upgrade/VERSION "*
     printf '%s\n' "${FAKE_CURRENT_APP_VERSION:-3.30.0}"
   fi
 elif [[ "$1" == exec && "$args" == *" curl "* ]]; then
-  exit "${FAKE_HTTP_STATUS:-0}"
+  if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+    exit "${FAKE_TARGET_HTTP_STATUS:-0}"
+  fi
+  exit "${FAKE_CURRENT_HTTP_STATUS:-0}"
 elif [[ "$1" == exec && "$args" == *" current_config validate "* ]]; then
-  exit "${FAKE_CONFIG_STATUS:-0}"
+  if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+    exit "${FAKE_TARGET_CONFIG_STATUS:-0}"
+  fi
+  exit "${FAKE_CURRENT_CONFIG_STATUS:-0}"
 elif [[ "$1" == exec && "$args" == *" system_health check "* ]]; then
-  exit "${FAKE_HEALTH_STATUS:-0}"
+  if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+    exit "${FAKE_TARGET_HEALTH_STATUS:-0}"
+  fi
+  exit "${FAKE_CURRENT_HEALTH_STATUS:-0}"
 elif [[ "$1" == exec && "$args" == *" migrations status "* ]]; then
-  exit "${FAKE_MIGRATIONS_STATUS:-0}"
+  if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
+    exit "${FAKE_TARGET_MIGRATIONS_STATUS:-0}"
+  fi
+  exit "${FAKE_CURRENT_MIGRATIONS_STATUS:-0}"
 elif [[ "$1" == pull ]]; then
   exit "${FAKE_PULL_STATUS:-0}"
 elif [[ "$1" == load ]]; then
@@ -198,6 +210,43 @@ else
 fi
 FAKE_DOCKER
   chmod +x "${FAKE_BIN_DIR}/docker"
+}
+
+install_fake_git() {
+  cat >"${FAKE_BIN_DIR}/git" <<'FAKE_GIT'
+#!/usr/bin/env bash
+set -u
+
+{
+  printf 'git'
+  printf ' %q' "$@"
+  printf '\n'
+} >>"${FAKE_COMMAND_LOG}"
+
+if [[ "${1:-}" == -C ]]; then
+  shift 2
+fi
+
+case "${1:-}" in
+  status)
+    printf '%s' "${FAKE_GIT_STATUS:-}"
+    ;;
+  symbolic-ref)
+    if [[ "${FAKE_GIT_DETACHED:-0}" == 1 ]]; then
+      exit 1
+    fi
+    printf '%s\n' refs/heads/codex/era-1706-rebuild-app
+    ;;
+  pull)
+    exit "${FAKE_GIT_PULL_STATUS:-0}"
+    ;;
+  *)
+    printf 'Unexpected fake git call: %s\n' "$*" >&2
+    exit 98
+    ;;
+esac
+FAKE_GIT
+  chmod +x "${FAKE_BIN_DIR}/git"
 }
 
 set_required_community_plan() {

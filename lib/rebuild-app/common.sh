@@ -13,10 +13,47 @@ acquire_lock() {
   LOCK_DIR="${REBUILD_APP_LOCK_DIR:-${ROOT_DIR}/.rebuild-app/lock}"
   mkdir -p "$(dirname "$LOCK_DIR")"
   mkdir "$LOCK_DIR" 2>/dev/null || die "Another rebuild-app process is running."
+  LOCK_OWNER_FILE="${LOCK_DIR}/owner"
+  printf '%s\n' "$$" >"$LOCK_OWNER_FILE"
+  chmod 600 "$LOCK_OWNER_FILE"
 }
 
 release_lock() {
-  [[ -n "${LOCK_DIR:-}" ]] && rmdir "$LOCK_DIR" 2>/dev/null || true
+  if [[ -n "${LOCK_DIR:-}" && -f "${LOCK_DIR}/owner" ]] && \
+    [[ "$(<"${LOCK_DIR}/owner")" == "$$" ]]; then
+    rm -f "${LOCK_DIR}/owner"
+    rmdir "$LOCK_DIR" 2>/dev/null || true
+  fi
+}
+
+resume_lock_after_reexec() {
+  LOCK_DIR="${REBUILD_APP_LOCK_DIR:-${ROOT_DIR}/.rebuild-app/lock}"
+  [[ -f "${LOCK_DIR}/owner" && "$(<"${LOCK_DIR}/owner")" == "$$" ]] || \
+    die "Unable to resume rebuild-app lock after repository update."
+  LOCK_OWNER_FILE="${LOCK_DIR}/owner"
+}
+
+update_repo_and_reexec() {
+  local checkout_status
+
+  command -v git >/dev/null 2>&1 || die "git is required for --update-repo."
+  checkout_status=$(git -C "$ROOT_DIR" status --porcelain) || \
+    die "Unable to inspect the Docker checkout."
+  [[ -z "$checkout_status" ]] || die "--update-repo requires a clean checkout."
+  git -C "$ROOT_DIR" symbolic-ref -q HEAD >/dev/null || \
+    die "--update-repo requires an attached branch."
+  git -C "$ROOT_DIR" pull --ff-only || die "git pull --ff-only failed."
+
+  exec "${ROOT_DIR}/rebuild-app" "${ORIGINAL_ARGS[@]}" --rebuild-app-after-update
+}
+
+validate_env_key_once() {
+  local key=$1
+  local count
+
+  count=$(awk -v key="$key" '$0 ~ "^" key "=" { count++ } END { print count + 0 }' "$ENV_FILE") || \
+    die "Unable to inspect ${ENV_FILE}."
+  ((count <= 1)) || die "Duplicate ${key} definitions in ${ENV_FILE}."
 }
 
 file_mode() {
@@ -67,9 +104,8 @@ atomic_set_env() {
   local count
 
   [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || die "Invalid environment key: ${key}"
-  count=$(awk -v key="$key" '$0 ~ "^" key "=" { count++ } END { print count + 0 }' "$ENV_FILE") || \
-    die "Unable to inspect ${ENV_FILE}."
-  ((count <= 1)) || die "Duplicate ${key} definitions in ${ENV_FILE}."
+  validate_env_key_once "$key"
+  count=$(awk -v key="$key" '$0 ~ "^" key "=" { count++ } END { print count + 0 }' "$ENV_FILE")
 
   PREVIOUS_ENV_KEY=$key
   if ((count == 1)); then

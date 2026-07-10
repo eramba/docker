@@ -9,12 +9,14 @@ source "${ROOT_DIR}/lib/rebuild-app/plan.sh"
 # shellcheck source=lib/rebuild-app/docker.sh
 source "${ROOT_DIR}/lib/rebuild-app/docker.sh"
 
+ORIGINAL_ARGS=("$@")
 EDITION=""
 IMAGE_FILE=""
 UPDATE_REPO=0
 DRY_RUN=0
 ASSUME_YES=0
 BACKUP_CONFIRMED=0
+AFTER_REPO_UPDATE=0
 
 while (($#)); do
   case "$1" in
@@ -44,6 +46,10 @@ while (($#)); do
       BACKUP_CONFIRMED=1
       shift
       ;;
+    --rebuild-app-after-update)
+      AFTER_REPO_UPDATE=1
+      shift
+      ;;
     *)
       die "Unknown option: $1"
       ;;
@@ -69,7 +75,6 @@ export EDITION IMAGE_FILE UPDATE_REPO DRY_RUN ASSUME_YES BACKUP_CONFIRMED
 
 ENV_FILE="${REBUILD_APP_ENV_FILE:-${ROOT_DIR}/.env}"
 [[ -f "$ENV_FILE" ]] || die "Missing deployment environment file: ${ENV_FILE}"
-command -v docker >/dev/null 2>&1 || die "docker is required."
 
 PHASE=preflight
 ENV_MUTATED=0
@@ -95,13 +100,24 @@ handle_exit() {
   exit "$exit_status"
 }
 
-acquire_lock
+if ((AFTER_REPO_UPDATE)); then
+  resume_lock_after_reexec
+else
+  acquire_lock
+fi
 trap handle_exit EXIT
 trap 'exit 130' INT TERM
 
+if ((UPDATE_REPO && !AFTER_REPO_UPDATE)); then
+  update_repo_and_reexec
+fi
+
+command -v docker >/dev/null 2>&1 || die "docker is required."
 detect_installation
 validate_delivery_options
 compose config >/dev/null || die "Docker Compose configuration is invalid."
+validate_env_key_once ERAMBA_IMAGE_TAG
+check_current_deployment
 resolve_plan
 
 if [[ "$PLAN_REQUIRED" == false ]]; then

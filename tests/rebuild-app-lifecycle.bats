@@ -13,6 +13,14 @@ teardown() {
   teardown_rebuild_app_test
 }
 
+assert_post_boundary_failure() {
+  [ "$status" -ne 0 ]
+  assert_output_contains "Migration boundary crossed; automatic rollback was not attempted"
+  assert_output_contains "Diagnostics:"
+  grep -Fx 'ERAMBA_IMAGE_TAG=3.30.1-6' "$REBUILD_APP_ENV_FILE"
+  assert_log_excludes " up -d eramba cron triggers_caddy"
+}
+
 @test "pre-migration failure restores the previous tag and application services" {
   export FAKE_FAIL_MATCH=" rm -f triggers_caddy "
 
@@ -92,11 +100,11 @@ teardown() {
   [ "$status" -eq 0 ]
 
   eramba_up=$(grep -n " up -d eramba$" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
-  http_check=$(grep -n " exec .* eramba curl " "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
-  config_check=$(grep -n " current_config validate" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
-  health_check=$(grep -n " system_health check" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
+  http_check=$(awk -v start="$eramba_up" 'NR > start && / exec .* eramba curl / { print NR; exit }' "$FAKE_COMMAND_LOG")
+  config_check=$(awk -v start="$eramba_up" 'NR > start && / current_config validate/ { print NR; exit }' "$FAKE_COMMAND_LOG")
+  health_check=$(awk -v start="$eramba_up" 'NR > start && / system_health check/ { print NR; exit }' "$FAKE_COMMAND_LOG")
   cron_up=$(grep -n " up -d cron$" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
-  migrations_check=$(grep -n " cron bin/cake migrations status" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
+  migrations_check=$(awk -v start="$cron_up" 'NR > start && / cron bin\/cake migrations status/ { print NR; exit }' "$FAKE_COMMAND_LOG")
   triggers_up=$(grep -n " up -d triggers_caddy$" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
   trigger_health=$(grep -n "State.Health.Status.*triggers_caddy" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
 
@@ -110,7 +118,7 @@ teardown() {
 }
 
 @test "migration boundary failure keeps target tag and captures diagnostics without rollback" {
-  export FAKE_HTTP_STATUS=1
+  export FAKE_TARGET_HTTP_STATUS=1
   export REBUILD_APP_START_TIMEOUT_SECONDS=0
   export REBUILD_APP_POLL_INTERVAL_SECONDS=0
 
@@ -146,4 +154,78 @@ teardown() {
   assert_output_contains "Preserved volume identity changed"
   assert_output_contains "automatic rollback was not attempted"
   grep -Fx 'ERAMBA_IMAGE_TAG=3.30.1-6' "$REBUILD_APP_ENV_FILE"
+}
+
+@test "pre-migration volume removal failure restores the previous deployment" {
+  export FAKE_VOLUME_RM_STATUS=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  [ "$status" -ne 0 ]
+  assert_output_contains "Pre-migration recovery succeeded"
+  grep -Fx 'ERAMBA_IMAGE_TAG=3.30.0-23' "$REBUILD_APP_ENV_FILE"
+  assert_log_contains " up -d eramba cron triggers_caddy"
+}
+
+@test "target eramba start failure is post-boundary and never rolls back" {
+  export FAKE_FAIL_MATCH=" up -d eramba"
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_log_excludes " up -d cron"
+  assert_log_excludes " up -d triggers_caddy"
+}
+
+@test "running target version mismatch is post-boundary and blocks cron" {
+  export FAKE_RUNNING_TARGET_APP_VERSION=3.30.9
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_output_contains "Running application version does not match"
+  assert_log_excludes " up -d cron"
+}
+
+@test "target configuration failure is post-boundary and blocks cron" {
+  export FAKE_TARGET_CONFIG_STATUS=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_log_excludes " up -d cron"
+}
+
+@test "target cron migrations failure stops unverified cron and blocks triggers" {
+  export FAKE_TARGET_MIGRATIONS_STATUS=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_log_contains " up -d cron"
+  assert_log_contains " stop cron"
+  assert_log_excludes " up -d triggers_caddy"
+}
+
+@test "unhealthy triggers are stopped post-boundary without stopping verified cron" {
+  export FAKE_TRIGGER_HEALTH=unhealthy
+  export REBUILD_APP_START_TIMEOUT_SECONDS=0
+  export REBUILD_APP_POLL_INTERVAL_SECONDS=0
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_log_contains " up -d triggers_caddy"
+  triggers_up=$(grep -n " up -d triggers_caddy$" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
+  ! awk -v start="$triggers_up" 'NR > start && / stop cron/ { found = 1 } END { exit found ? 0 : 1 }' "$FAKE_COMMAND_LOG"
+}
+
+@test "final image mismatch is diagnosed after all staged checks" {
+  export FAKE_TARGET_IMAGE=ghcr.io/eramba/eramba:wrong
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_output_contains "do not use the planned image"
+}
+
+@test "reused app volume is a post-boundary verification failure" {
+  export FAKE_APP_VOLUME_REUSED=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  assert_post_boundary_failure
+  assert_output_contains "Application volume identity did not change"
 }

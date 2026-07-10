@@ -60,6 +60,17 @@ validate_delivery_options() {
   fi
 }
 
+check_current_deployment() {
+  application_exec eramba curl -fsS -o /dev/null http://localhost:80 || \
+    die "Current application HTTP readiness check failed."
+  application_exec eramba bin/cake current_config validate || \
+    die "Current configuration validation failed."
+  application_exec eramba bin/cake system_health check || \
+    die "Current system health check failed."
+  application_exec cron bin/cake migrations status || \
+    die "Current migrations status check failed."
+}
+
 acquire_target_image() {
   if [[ "$EDITION" == community ]]; then
     docker pull "$TARGET_IMAGE" || die "Unable to pull target image: ${TARGET_IMAGE}"
