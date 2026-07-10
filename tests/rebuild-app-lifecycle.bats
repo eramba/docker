@@ -33,6 +33,16 @@ assert_post_boundary_failure() {
   assert_log_excludes " volume rm "
 }
 
+@test "failed tag restoration never starts application services" {
+  install_fail_second_mv
+  export FAKE_FAIL_MATCH=" rm -f triggers_caddy "
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  [ "$status" -ne 0 ]
+  assert_output_contains "Pre-migration recovery failed"
+  assert_log_excludes " up -d eramba cron triggers_caddy"
+}
+
 @test "volume mutation removes only the twice-verified app volume and never mysql or redis" {
   run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
   [ "$status" -eq 0 ]

@@ -205,8 +205,11 @@ remove_verified_app_volume() {
 recover_before_migration() {
   local recovered=1
 
-  restore_image_tag || recovered=0
-  compose up -d eramba cron triggers_caddy || recovered=0
+  if restore_image_tag; then
+    compose up -d eramba cron triggers_caddy || recovered=0
+  else
+    recovered=0
+  fi
   if ((recovered)); then
     log "Pre-migration recovery succeeded; the previous image tag and application services were restored."
   else

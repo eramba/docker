@@ -249,6 +249,23 @@ FAKE_GIT
   chmod +x "${FAKE_BIN_DIR}/git"
 }
 
+install_fail_second_mv() {
+  cat >"${FAKE_BIN_DIR}/mv" <<'FAKE_MV'
+#!/usr/bin/env bash
+set -u
+counter_file="${TEST_TMPDIR}/mv-count"
+count=0
+[[ ! -f "$counter_file" ]] || count=$(<"$counter_file")
+count=$((count + 1))
+printf '%s\n' "$count" >"$counter_file"
+if ((count >= 2)); then
+  exit 1
+fi
+exec /bin/mv "$@"
+FAKE_MV
+  chmod +x "${FAKE_BIN_DIR}/mv"
+}
+
 set_required_community_plan() {
   export FAKE_PLAN_JSON='{"required":true,"source_app_version":"3.30.0","target_app_version":"3.30.1","current_image_tag":"3.30.0-23","target_image_tag":"3.30.1-6","edition":"community","distribution":"registry"}'
 }
