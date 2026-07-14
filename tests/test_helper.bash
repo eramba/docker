@@ -1,6 +1,7 @@
 setup_rebuild_app_test() {
+  local test_tmp_root="${BATS_TEST_TMPDIR:-${TMPDIR:-/tmp}}"
   export TEST_TMPDIR
-  TEST_TMPDIR="$(mktemp -d "${BATS_TEST_TMPDIR}/rebuild-app.XXXXXX")"
+  TEST_TMPDIR="$(mktemp -d "${test_tmp_root}/rebuild-app.XXXXXX")"
   export REBUILD_APP_ROOT
   REBUILD_APP_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   export REBUILD_APP_STATE_DIR="${TEST_TMPDIR}/state"
