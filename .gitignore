@@ -33,3 +33,4 @@ nbproject/*
 .vscode
 # Sass preprocessor
 .sass-cache/
+.rebuild-app/

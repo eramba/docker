@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/rebuild-app/common.sh
+source "${ROOT_DIR}/lib/rebuild-app/common.sh"
+# shellcheck source=lib/rebuild-app/plan.sh
+source "${ROOT_DIR}/lib/rebuild-app/plan.sh"
+# shellcheck source=lib/rebuild-app/docker.sh
+source "${ROOT_DIR}/lib/rebuild-app/docker.sh"
+
+ORIGINAL_ARGS=("$@")
+EDITION=""
+IMAGE_FILE=""
+UPDATE_REPO=0
+DRY_RUN=0
+ASSUME_YES=0
+BACKUP_CONFIRMED=0
+AFTER_REPO_UPDATE=0
+
+while (($#)); do
+  case "$1" in
+    --edition)
+      (($# >= 2)) || die "--edition requires community or enterprise"
+      EDITION=$2
+      shift 2
+      ;;
+    --image-file)
+      (($# >= 2)) || die "--image-file requires a path"
+      IMAGE_FILE=$2
+      shift 2
+      ;;
+    --update-repo)
+      UPDATE_REPO=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --yes)
+      ASSUME_YES=1
+      shift
+      ;;
+    --backup-confirmed)
+      BACKUP_CONFIRMED=1
+      shift
+      ;;
+    --rebuild-app-after-update)
+      AFTER_REPO_UPDATE=1
+      shift
+      ;;
+    *)
+      die "Unknown option: $1"
+      ;;
+  esac
+done
+
+[[ -z "$EDITION" || "$EDITION" == community || "$EDITION" == enterprise ]] || \
+  die "--edition must be community or enterprise"
+
+if [[ "$EDITION" == community && -n "$IMAGE_FILE" ]]; then
+  die "--image-file is only valid for enterprise"
+fi
+
+if [[ "$EDITION" == enterprise && -z "$IMAGE_FILE" ]]; then
+  die "--image-file is required for enterprise"
+fi
+
+if ((ASSUME_YES && !DRY_RUN && !BACKUP_CONFIRMED)); then
+  die "--backup-confirmed is required with --yes"
+fi
+
+export EDITION IMAGE_FILE UPDATE_REPO DRY_RUN ASSUME_YES BACKUP_CONFIRMED
+
+ENV_FILE="${REBUILD_APP_ENV_FILE:-${ROOT_DIR}/.env}"
+[[ -f "$ENV_FILE" ]] || die "Missing deployment environment file: ${ENV_FILE}"
+
+PHASE=preflight
+ENV_MUTATED=0
+ERAMBA_VERIFIED=0
+CRON_VERIFIED=0
+TRIGGERS_VERIFIED=0
+FAILED_STEP=preflight
+
+handle_exit() {
+  local exit_status=$?
+  trap - EXIT INT TERM
+  if ((exit_status != 0)) && [[ "$PHASE" == mutating ]]; then
+    recover_before_migration
+    write_run_state recovered "$exit_status" "${FAILED_STEP:-unknown}" || true
+  elif ((exit_status != 0)) && [[ "$PHASE" == migration-boundary ]]; then
+    quiesce_unverified_dependents
+    capture_diagnostics "$exit_status"
+    log "Migration boundary crossed; automatic rollback was not attempted."
+    log "Operator review and, when required, database restore are necessary before recovery."
+    log "Diagnostics: ${RUN_DIR}"
+  fi
+  release_lock
+  exit "$exit_status"
+}
+
+if ((AFTER_REPO_UPDATE)); then
+  resume_lock_after_reexec
+else
+  acquire_lock
+fi
+trap handle_exit EXIT
+trap 'exit 130' INT TERM
+
+if ((UPDATE_REPO && !AFTER_REPO_UPDATE)); then
+  update_repo_and_reexec
+fi
+
+command -v docker >/dev/null 2>&1 || die "docker is required."
+detect_installation
+validate_delivery_options
+compose config >/dev/null || die "Docker Compose configuration is invalid."
+validate_env_key_once ERAMBA_IMAGE_TAG
+check_current_deployment
+resolve_plan
+
+if [[ "$PLAN_REQUIRED" == false ]]; then
+  log "nothing to do"
+  exit 0
+fi
+
+acquire_target_image
+validate_target_image
+snapshot_volume_identities
+
+log "Current: ${CURRENT_IMAGE} (application ${CURRENT_APP_VERSION})"
+log "Target:  ${TARGET_IMAGE} (application ${TARGET_APP_VERSION})"
+log "Application volume to replace: ${APP_VOLUME_NAME}"
+log "Preserved volumes: ${DATA_VOLUME_IDENTITY%%|*}, ${LOGS_VOLUME_IDENTITY%%|*}, ${DB_VOLUME_IDENTITY%%|*}, ${TRIGGER_STORAGE_VOLUME_IDENTITY%%|*}"
+
+if ((DRY_RUN)); then
+  log "Dry run complete; no deployment state changed."
+  exit 0
+fi
+
+if ((!ASSUME_YES)); then
+  read -r -p "Proceed with this deployment plan? Type yes: " plan_confirmation
+  [[ "$plan_confirmation" == yes ]] || die "Deployment plan was not confirmed."
+  read -r -p "Confirm a current recoverable backup exists. Type yes: " backup_confirmation
+  [[ "$backup_confirmation" == yes ]] || die "A current recoverable backup was not confirmed."
+fi
+
+create_run_directory
+write_run_state prepared 0 none
+PHASE=mutating
+FAILED_STEP=write-target-image-tag
+atomic_set_env ERAMBA_IMAGE_TAG "$TARGET_IMAGE_TAG"
+FAILED_STEP=stop-application-services
+stop_application_services
+FAILED_STEP=remove-application-volume
+remove_verified_app_volume
+
+start_and_verify_eramba
+start_and_verify_cron
+start_and_verify_triggers
+verify_final_deployment
+
+PHASE=complete
+FAILED_STEP=none
+write_run_state succeeded 0 none
+log "Rebuild completed successfully."

@@ -6,8 +6,39 @@ on:
       - '*'
 
 jobs:
+  shell_tests:
+    name: Rebuild App Shell Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Run rebuild-app tests
+        run: >-
+          npx --yes bats@1.12.0
+          tests/rebuild-app-test-helper.bats
+          tests/rebuild-app-options.bats
+          tests/rebuild-app-plan.bats
+          tests/rebuild-app-lifecycle.bats
+
+      - name: Check Bash syntax
+        run: bash -n rebuild-app lib/rebuild-app/common.sh lib/rebuild-app/plan.sh lib/rebuild-app/docker.sh
+
+      - name: Check immutable image interpolation
+        run: |
+          community_images=$(ERAMBA_IMAGE_TAG=3.30.1-6 docker compose \
+            -f docker-compose.simple-install.yml config --images)
+          enterprise_images=$(ERAMBA_IMAGE_TAG=3.30.1-6 docker compose \
+            -f docker-compose.simple-install.yml \
+            -f docker-compose.simple-install.enterprise.yml config --images)
+
+          test "$(grep -c '^ghcr.io/eramba/eramba:3.30.1-6$' <<<"$community_images")" -eq 2
+          test "$(grep -c '^ghcr.io/eramba/eramba-enterprise:3.30.1-6$' <<<"$enterprise_images")" -eq 2
+
   simple_install:
     name: Simple Installation [${{ matrix.build-type }}]
+    needs: shell_tests
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
