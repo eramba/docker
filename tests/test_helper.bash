@@ -134,11 +134,25 @@ elif [[ "$1" == exec && "$args" == *" cat /var/www/eramba/app/upgrade/VERSION "*
     printf '%s\n' "${FAKE_CURRENT_APP_VERSION:-3.30.0}"
   fi
 elif [[ "$1" == exec && "$args" == *" curl "* ]]; then
+  if [[ "${FAKE_REQUIRE_HTTPS_READINESS:-0}" == 1 ]]; then
+    [[ "$args" == *" https://localhost:443 "* ]] || exit 91
+    insecure_tls=0
+    for argument in "$@"; do
+      if [[ "$argument" == --insecure || "$argument" == -*k* ]]; then
+        insecure_tls=1
+      fi
+    done
+    ((insecure_tls)) || exit 92
+  fi
   if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
     exit "${FAKE_TARGET_HTTP_STATUS:-0}"
   fi
   exit "${FAKE_CURRENT_HTTP_STATUS:-0}"
 elif [[ "$1" == exec && "$args" == *" current_config validate "* ]]; then
+  if [[ -n "${FAKE_CONFIG_OUTPUT:-}" ]]; then
+    printf '%s\n' "$FAKE_CONFIG_OUTPUT"
+    printf '%s\n' "$FAKE_CONFIG_OUTPUT" >&2
+  fi
   if [[ -f "${TEST_TMPDIR}/target-started" ]]; then
     exit "${FAKE_TARGET_CONFIG_STATUS:-0}"
   fi
@@ -188,6 +202,9 @@ elif [[ "$1" == volume && "$2" == inspect ]]; then
 elif [[ "$1" == volume && "$2" == rm ]]; then
   exit "${FAKE_VOLUME_RM_STATUS:-0}"
 elif [[ "$1" == compose ]]; then
+  if [[ "${FAKE_REJECT_CREATE_NO_DEPS:-0}" == 1 && "$args" == *" create --no-deps eramba"* ]]; then
+    exit 64
+  fi
   if [[ "$args" == *" stop "* ]]; then
     current_tag=$(awk -F= '$1 == "ERAMBA_IMAGE_TAG" { print substr($0, index($0, "=") + 1) }' "$REBUILD_APP_ENV_FILE")
     printf 'observed-tag-before-stop %s\n' "$current_tag" >>"${FAKE_COMMAND_LOG}"
@@ -196,7 +213,7 @@ elif [[ "$1" == compose ]]; then
     rm -f "${TEST_TMPDIR}/eramba-removed"
     : >"${TEST_TMPDIR}/target-started"
   fi
-  if [[ "$args" == *" create --no-deps eramba"* ]]; then
+  if [[ "$args" == *" create eramba"* || "$args" == *" create --no-deps eramba"* ]]; then
     rm -f "${TEST_TMPDIR}/eramba-removed"
   fi
   if [[ "$args" == *" rm -f eramba"* ]]; then

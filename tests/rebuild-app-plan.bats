@@ -117,6 +117,15 @@ teardown() {
   assert_preflight_pure
 }
 
+@test "current readiness probes the self-signed HTTPS endpoint" {
+  export FAKE_REQUIRE_HTTPS_READINESS=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --dry-run
+  [ "$status" -eq 0 ]
+  assert_output_contains "Dry run complete; no deployment state changed."
+  assert_preflight_pure
+}
+
 @test "current config failure blocks plan resolution" {
   export FAKE_CURRENT_CONFIG_STATUS=1
   run "$REBUILD_APP_ROOT/rebuild-app" --edition community --dry-run

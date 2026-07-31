@@ -56,14 +56,23 @@ assert_post_boundary_failure() {
   triggers_stop=$(grep -n " stop triggers_caddy" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
   cron_stop=$(grep -n " stop cron" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
   eramba_stop=$(grep -n " stop eramba" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
-  verification_create=$(grep -n " create --no-deps eramba" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
+  verification_create=$(grep -n " create eramba" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
   volume_rm=$(grep -n " volume rm -- app-volume" "$FAKE_COMMAND_LOG" | head -1 | cut -d: -f1)
   [ "$triggers_stop" -lt "$cron_stop" ]
   [ "$cron_stop" -lt "$eramba_stop" ]
   [ "$eramba_stop" -lt "$verification_create" ]
   [ "$verification_create" -lt "$volume_rm" ]
   [ "$eramba_stop" -lt "$volume_rm" ]
+  assert_log_excludes " create --no-deps eramba"
   grep -Fx 'ERAMBA_IMAGE_TAG=3.30.1-6' "$REBUILD_APP_ENV_FILE"
+}
+
+@test "volume re-verification is compatible with Compose v5 create" {
+  export FAKE_REJECT_CREATE_NO_DEPS=1
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  [ "$status" -eq 0 ]
+  assert_output_contains "Rebuild completed successfully"
 }
 
 @test "volume identity change aborts without deleting any volume" {
@@ -125,6 +134,22 @@ assert_post_boundary_failure() {
   [ "$cron_up" -lt "$migrations_check" ]
   [ "$migrations_check" -lt "$triggers_up" ]
   [ "$triggers_up" -lt "$trigger_health" ]
+}
+
+@test "target startup probes the self-signed HTTPS endpoint" {
+  export FAKE_REQUIRE_HTTPS_READINESS=1
+  export REBUILD_APP_START_TIMEOUT_SECONDS=0
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  [ "$status" -eq 0 ]
+}
+
+@test "configuration validation output is never exposed" {
+  export FAKE_CONFIG_OUTPUT="db-password-must-not-appear"
+
+  run "$REBUILD_APP_ROOT/rebuild-app" --edition community --yes --backup-confirmed
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"$FAKE_CONFIG_OUTPUT"* ]]
 }
 
 @test "migration boundary failure keeps target tag and captures diagnostics without rollback" {

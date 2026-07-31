@@ -61,9 +61,9 @@ validate_delivery_options() {
 }
 
 check_current_deployment() {
-  application_exec eramba curl -fsS -o /dev/null http://localhost:80 || \
+  application_exec eramba curl -kfsS -o /dev/null https://localhost:443 || \
     die "Current application HTTP readiness check failed."
-  application_exec eramba bin/cake current_config validate || \
+  application_exec eramba bin/cake current_config validate >/dev/null 2>&1 || \
     die "Current configuration validation failed."
   application_exec eramba bin/cake system_health check || \
     die "Current system health check failed."
@@ -190,7 +190,7 @@ remove_verified_app_volume() {
   local current_identity
   local current_name
 
-  compose create --no-deps eramba
+  compose create eramba
   if ! current_identity=$(volume_identity eramba /var/www/eramba); then
     compose rm -f eramba >/dev/null 2>&1 || true
     die "Unable to re-verify the application volume."
@@ -228,7 +228,7 @@ wait_for_application_http() {
   local deadline=$((SECONDS + timeout))
 
   while true; do
-    if application_exec eramba curl -fsS -o /dev/null http://localhost:80; then
+    if application_exec eramba curl -kfsS -o /dev/null https://localhost:443; then
       return 0
     fi
     ((SECONDS >= deadline)) && die "Timed out waiting for the target eramba HTTP endpoint."
@@ -255,7 +255,8 @@ start_and_verify_eramba() {
     die "Running application version does not match the plan."
 
   FAILED_STEP=validate-target-config
-  application_exec eramba bin/cake current_config validate
+  application_exec eramba bin/cake current_config validate >/dev/null 2>&1 || \
+    die "Target configuration validation failed."
   FAILED_STEP=check-target-health
   application_exec eramba bin/cake system_health check
   ERAMBA_VERIFIED=1
