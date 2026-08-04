@@ -5,6 +5,10 @@ on:
     branches:
       - '*'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   simple_install:
     name: Simple Installation [${{ matrix.build-type }}]
@@ -22,14 +26,13 @@ jobs:
 
       - name: Check MCP simple-install contract
         run: npx --yes bats@1.12.0 tests/mcp-simple-install.bats
-      #
-      #      - name: Log in to GitHub Container Registry
-      #        uses: docker/login-action@v2
-      #        with:
-      #          registry: ghcr.io
-      #          username: ${{ github.actor }}
-      #          password: ${{ secrets.TOKEN_INCREASED_PERMISSIONS }}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Simple Install
         run: |
           docker compose -f docker-compose.simple-install.yml down 2>&1
