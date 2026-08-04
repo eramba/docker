@@ -1,4 +1,6 @@
-:80 {
+:443 {
+	tls /certs/mycert.crt /certs/mycert.key
+
 	# Keep Inspector local-only. Proxying the UI and its local bridge through the
 	# same public origin as Eramba/MCP makes OAuth and app rendering brittle.
 	@mcp path /mcp /openapi /openapi.json /.well-known/oauth-protected-resource /.well-known/oauth-protected-resource/mcp /.well-known/oauth-authorization-server /.well-known/openid-configuration

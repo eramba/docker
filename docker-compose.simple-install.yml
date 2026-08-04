@@ -26,8 +26,6 @@ services:
     container_name: eramba
     image: ghcr.io/eramba/eramba:latest
     restart: always
-    ports:
-      - 8443:443
     volumes:
       - data:/var/www/eramba/app/upgrade/data
       - app:/var/www/eramba
@@ -56,14 +54,12 @@ services:
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       OAUTH2_ENABLED: ${OAUTH2_ENABLED:-1}
-      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-${PUBLIC_ADDRESS}}
-      OAUTH2_RESOURCE: ${OAUTH2_RESOURCE:-${PUBLIC_ADDRESS}/mcp}
       OAUTH2_SCOPE: ${OAUTH2_SCOPE:-eramba.full_access}
       OAUTH2_AUTH_CODE_TTL: ${OAUTH2_AUTH_CODE_TTL:-120}
       OAUTH2_ACCESS_TOKEN_TTL: ${OAUTH2_ACCESS_TOKEN_TTL:-900}
       OAUTH2_REFRESH_TOKEN_TTL: ${OAUTH2_REFRESH_TOKEN_TTL:-2592000}
-      OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:-eramba-mcp-introspect}
-      OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:-Replace-this-with-a-secret}
+      OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:?Set OAUTH2_INTROSPECTION_CLIENT_ID in .env}
+      OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:?Set OAUTH2_INTROSPECTION_CLIENT_SECRET in .env}
     links:
       - mysql
       - redis
@@ -102,14 +98,12 @@ services:
       DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
       LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
       OAUTH2_ENABLED: ${OAUTH2_ENABLED:-1}
-      OAUTH2_ISSUER: ${OAUTH2_ISSUER:-${PUBLIC_ADDRESS}}
-      OAUTH2_RESOURCE: ${OAUTH2_RESOURCE:-${PUBLIC_ADDRESS}/mcp}
       OAUTH2_SCOPE: ${OAUTH2_SCOPE:-eramba.full_access}
       OAUTH2_AUTH_CODE_TTL: ${OAUTH2_AUTH_CODE_TTL:-120}
       OAUTH2_ACCESS_TOKEN_TTL: ${OAUTH2_ACCESS_TOKEN_TTL:-900}
       OAUTH2_REFRESH_TOKEN_TTL: ${OAUTH2_REFRESH_TOKEN_TTL:-2592000}
-      OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:-eramba-mcp-introspect}
-      OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:-Replace-this-with-a-secret}
+      OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:?Set OAUTH2_INTROSPECTION_CLIENT_ID in .env}
+      OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:?Set OAUTH2_INTROSPECTION_CLIENT_SECRET in .env}
     links:
       - mysql
       - redis
@@ -143,25 +137,21 @@ services:
       retries: 3
       start_period: 10s
   mcp_server:
-    image: ghcr.io/eramba/eramba-mcp-server:martin-plan-setup-upgrades
+    image: ghcr.io/eramba/eramba-mcp-server:${ERAMBA_MCP_IMAGE_TAG:-3.x}
     container_name: mcp_server
     restart: always
-    ports:
-      - 13000:3000
     depends_on:
       - eramba
     environment:
       MCP_TRANSPORT: http
       PORT: 3000
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
-      MCP_PUBLIC_URL: ${MCP_PUBLIC_URL:-http://localhost:13000}
-      MCP_RESOURCE: ${MCP_RESOURCE:-http://localhost:13000/mcp}
-      ERAMBA_BASE_URL: https://eramba
-      ERAMBA_OAUTH_ISSUER: ${OAUTH2_ISSUER:-${PUBLIC_ADDRESS}}
-      ERAMBA_OAUTH_INTROSPECTION_URL: ${ERAMBA_OAUTH_INTROSPECTION_URL:-https://eramba/oauth2/introspect}
-      ERAMBA_OAUTH_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:-eramba-mcp-introspect}
-      ERAMBA_OAUTH_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:-Replace-this-with-a-secret}
+      ERAMBA_BASE_URL: https://eramba:443
+      ERAMBA_OAUTH_INTROSPECTION_URL: https://eramba:443/oauth2/introspect
+      ERAMBA_OAUTH_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:?Set OAUTH2_INTROSPECTION_CLIENT_ID in .env}
+      ERAMBA_OAUTH_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:?Set OAUTH2_INTROSPECTION_CLIENT_SECRET in .env}
       MCP_REQUIRED_SCOPE: ${OAUTH2_SCOPE:-eramba.full_access}
+      ERAMBA_MCP_DEV_BEARER_TOKEN: ${ERAMBA_MCP_DEV_BEARER_TOKEN:-}
       ERAMBA_INSECURE_TLS: 1
       ERAMBA_REQUEST_TIMEOUT_MS: 15000
     networks:
@@ -177,9 +167,11 @@ services:
     container_name: public_proxy
     image: caddy:2.8-alpine
     ports:
-      - 8088:80
+      - 8443:443
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./apache/ssl/mycert.crt:/certs/mycert.crt:ro
+      - ./apache/ssl/mycert.key:/certs/mycert.key:ro
     environment:
       MCP_UPSTREAM: mcp_server:3000
       ERAMBA_UPSTREAM: https://eramba:443
