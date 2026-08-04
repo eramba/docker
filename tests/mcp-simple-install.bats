@@ -13,11 +13,11 @@ setup() {
   COMPOSE_CONFIG="$output"
 }
 
-@test "simple install keeps release app images and uses the MCP 3.x image" {
+@test "simple install keeps release app images and uses the latest MCP image" {
   [ "$(jq -r '.services.eramba.image' <<<"$COMPOSE_CONFIG")" = "ghcr.io/eramba/eramba:latest" ]
   [ "$(jq -r '.services.cron.image' <<<"$COMPOSE_CONFIG")" = "ghcr.io/eramba/eramba:latest" ]
   [ "$(jq -r '.services.triggers_caddy.image' <<<"$COMPOSE_CONFIG")" = "ghcr.io/eramba/eramba-triggers:latest" ]
-  [ "$(jq -r '.services.mcp_server.image' <<<"$COMPOSE_CONFIG")" = "ghcr.io/eramba/eramba-mcp-server:3.x" ]
+  [ "$(jq -r '.services.mcp_server.image' <<<"$COMPOSE_CONFIG")" = "ghcr.io/eramba/eramba-mcp-server:latest" ]
 }
 
 @test "Caddy is the only published application edge" {

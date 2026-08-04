@@ -137,7 +137,7 @@ services:
       retries: 3
       start_period: 10s
   mcp_server:
-    image: ghcr.io/eramba/eramba-mcp-server:${ERAMBA_MCP_IMAGE_TAG:-3.x}
+    image: ghcr.io/eramba/eramba-mcp-server:${ERAMBA_MCP_IMAGE_TAG:-latest}
     container_name: mcp_server
     restart: always
     depends_on:
