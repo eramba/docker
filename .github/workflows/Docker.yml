@@ -5,6 +5,10 @@ on:
     branches:
       - '*'
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   simple_install:
     name: Simple Installation [${{ matrix.build-type }}]
@@ -19,20 +23,22 @@ jobs:
     steps:
       - name: Check out the repo
         uses: actions/checkout@v3
-      #
-      #      - name: Log in to GitHub Container Registry
-      #        uses: docker/login-action@v2
-      #        with:
-      #          registry: ghcr.io
-      #          username: ${{ github.actor }}
-      #          password: ${{ secrets.TOKEN_INCREASED_PERMISSIONS }}
 
+      - name: Check MCP simple-install contract
+        run: npx --yes bats@1.12.0 tests/mcp-simple-install.bats
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Simple Install
         run: |
           docker compose -f docker-compose.simple-install.yml down 2>&1
           docker system prune --force --volumes --all
           
-          docker compose -f docker-compose.simple-install.yml up -d
+          ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token docker compose -f docker-compose.simple-install.yml up -d
 
       - name: Wait for apache to start
         timeout-minutes: 5
@@ -45,6 +51,31 @@ jobs:
           else
             exit 1
           fi
+
+      - name: MCP protocol check
+        timeout-minutes: 5
+        run: |
+          until curl --fail --silent --insecure https://localhost:8443/openapi.json >/dev/null; do
+            printf 'Waiting for MCP...\n'
+            sleep 2
+          done
+
+          curl --fail --silent --insecure https://localhost:8443/.well-known/oauth-protected-resource/mcp \
+            | jq -e '.resource == "https://localhost:8443/mcp"'
+
+          curl --fail --silent --insecure https://localhost:8443/mcp \
+            -H 'Authorization: Bearer ci-mcp-smoke-token' \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"docker-ci","version":"1.0"}}}' \
+            | jq -e '.result.protocolVersion == "2025-03-26"'
+
+          curl --fail --silent --insecure https://localhost:8443/mcp \
+            -H 'Authorization: Bearer ci-mcp-smoke-token' \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json, text/event-stream' \
+            --data '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
+            | jq -e '.result.tools | length > 0'
 
       - name: CMD Check
         run: |
