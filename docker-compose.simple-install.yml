@@ -24,7 +24,7 @@ services:
       - app_internal
   eramba:
     container_name: eramba
-    image: ghcr.io/eramba/eramba:martin-plan-setup-upgrades
+    image: ghcr.io/eramba/eramba:latest
     restart: always
     ports:
       - 8443:443
@@ -74,7 +74,7 @@ services:
       - triggers_net
   cron:
     container_name: cron
-    image: ghcr.io/eramba/eramba:martin-plan-setup-upgrades
+    image: ghcr.io/eramba/eramba:latest
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -120,7 +120,7 @@ services:
       - app_internal
       - triggers_net
   triggers_caddy:
-    image: ghcr.io/eramba/eramba-triggers:martin-plan-setup-upgrades
+    image: ghcr.io/eramba/eramba-triggers:latest
     container_name: triggers_caddy
     entrypoint:
       - /app/iptables-entrypoint.sh
