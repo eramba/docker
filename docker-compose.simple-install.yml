@@ -2,7 +2,25 @@ services:
   mysql:
     container_name: mysql
     image: mysql:8.4.3-oracle
-    command: ["mysqld", "--disable-log-bin"]
+    command: 
+      - mysqld
+      - --disable-log-bin
+      - --max_allowed_packet=128M
+      - --sql_mode=NO_ENGINE_SUBSTITUTION
+      - --innodb_strict_mode=0
+      - --innodb_lock_wait_timeout=200
+      - --innodb_stats_on_metadata=OFF
+      - --binlog_row_image=MINIMAL
+      - --sync_binlog=1
+      - --local_infile=OFF
+      - --source_verify_checksum=ON
+      - --relay_log_purge=1
+      - --replica_sql_verify_checksum=1
+      - --skip-name-resolve
+      - --slow_query_log=1
+      - --slow_query_log_file=/tmp/mysql-slow.log
+      - --log_bin_trust_function_creators=OFF
+      - --log_bin=OFF
     restart: always
     volumes:
       - db-data:/var/lib/mysql
@@ -72,7 +90,7 @@ services:
     container_name: cron
     image: ghcr.io/eramba/eramba:latest
     command: ["cron", "-f"]
-    entrypoint: ["/docker-cron-entrypoint.sh"]
+    entrypoint: ["/bin/sh", "/docker-cron-entrypoint.sh"]
     restart: always
     volumes:
       - data:/var/www/eramba/app/upgrade/data
