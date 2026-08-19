@@ -27,6 +27,17 @@ setup() {
   [ "$(jq -r '.services.public_proxy.ports[0] | "\(.published):\(.target)"' <<<"$COMPOSE_CONFIG")" = "8443:443" ]
 }
 
+@test "Caddy host port can be overridden without changing its internal port" {
+  run env -i PATH="$PATH" HOME="$HOME" ERAMBA_HOST_PORT=9443 docker compose \
+    --project-directory "$REPOSITORY_ROOT" \
+    --env-file "$REPOSITORY_ROOT/.env" \
+    -f "$REPOSITORY_ROOT/docker-compose.simple-install.yml" \
+    config --format json
+
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '.services.public_proxy.ports[0] | "\(.published):\(.target)"' <<<"$output")" = "9443:443" ]
+}
+
 @test "MCP derives public metadata from PUBLIC_ADDRESS and introspects internally" {
   [ "$(jq -r '.services.mcp_server.environment.PUBLIC_ADDRESS' <<<"$COMPOSE_CONFIG")" = "https://localhost:8443" ]
   [ "$(jq -r '.services.mcp_server.environment.ERAMBA_OAUTH_INTROSPECTION_URL' <<<"$COMPOSE_CONFIG")" = "https://eramba:443/oauth2/introspect" ]

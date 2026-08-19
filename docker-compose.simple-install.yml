@@ -167,7 +167,7 @@ services:
     container_name: public_proxy
     image: caddy:2.8-alpine
     ports:
-      - 8443:443
+      - "${ERAMBA_HOST_PORT:-8443}:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./apache/ssl/mycert.crt:/certs/mycert.crt:ro
