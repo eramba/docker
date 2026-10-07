@@ -1,5 +1,36 @@
+{
+	servers {
+		trusted_proxies static {$EXTERNAL_TRUSTED_PROXIES}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
 :443 {
 	tls /certs/mycert.crt /certs/mycert.key
+
+	# Unsupported aliases can collide with standard headers after PHP normalizes
+	# hyphens/dots to underscores. Never forward them, even from a trusted LB.
+	request_header -X_Forwarded*
+	request_header -X.Forwarded*
+	request_header -X-Forwarded_*
+	request_header -X-Forwarded.*
+	request_header -X_Real*
+	request_header -X.Real*
+	request_header -X-Real_*
+	request_header -X-Real.*
+	request_header -Client_IP
+	request_header -Client.IP
+
+	# Caddy sets trusted_proxy from the original connection peer, not client_ip.
+	# It handles X-Forwarded-For/Proto/Host itself; remove other metadata that an
+	# untrusted caller must not introduce before Apache sees trusted Caddy.
+	@untrusted vars trusted_proxy false
+	request_header @untrusted -X-Forwarded-Port
+	request_header @untrusted -X-Forwarded-Prefix
+	request_header @untrusted -Forwarded
+	request_header @untrusted -X-Real-IP
+	request_header @untrusted -Client-IP
 
 	# Keep Inspector local-only. Proxying the UI and its local bridge through the
 	# same public origin as Eramba/MCP makes OAuth and app rendering brittle.
@@ -10,6 +41,7 @@
 
 	handle {
 		reverse_proxy {$ERAMBA_UPSTREAM:https://eramba:443} {
+			header_up X-Forwarded-For {client_ip}
 			transport http {
 				tls_insecure_skip_verify
 			}

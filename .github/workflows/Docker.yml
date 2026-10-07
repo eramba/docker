@@ -24,8 +24,9 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      - name: Check MCP simple-install contract
-        run: npx --yes bats@1.12.0 tests/mcp-simple-install.bats
+      - name: Check simple-install and trusted-proxy contracts
+        timeout-minutes: 5
+        run: npx --yes bats@1.12.0 tests/*.bats
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3

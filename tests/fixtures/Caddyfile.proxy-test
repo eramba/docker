@@ -1,0 +1,35 @@
+import /etc/caddy/installer.Caddyfile
+
+(aliases) {
+	@aliases query alias-test=1
+	respond @aliases "__FORWARDING_ALIASES__"
+}
+
+https://:8080 {
+	tls /certs/mycert.crt /certs/mycert.key
+	import aliases
+	respond /metadata "{http.request.header.X-Forwarded-Proto}|{http.request.header.X-Forwarded-Host}|{http.request.header.X-Forwarded-Port}|{http.request.header.X-Forwarded-Prefix}|{http.request.header.Forwarded}|{http.request.header.X-Real-IP}|{http.request.header.Client-IP}"
+	respond "{http.request.header.X-Forwarded-For}"
+}
+
+http://:8082 {
+	import aliases
+	respond "mcp"
+}
+
+# Model an external LB that appends its observed client to an incoming chain.
+http://:8081 {
+	reverse_proxy https://127.0.0.1:443 {
+		header_up X-Forwarded-For "{http.request.header.X-Forwarded-For}, 10.40.5.6"
+		header_up X-Forwarded-Proto https
+		header_up X-Forwarded-Host public.example:8443
+		header_up X-Forwarded-Port 8443
+		header_up X-Forwarded-Prefix /grc
+		header_up Forwarded "for=10.40.5.6;proto=https"
+		header_up X-Real-IP 10.40.5.6
+		header_up Client-IP 10.40.5.6
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}
