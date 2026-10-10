@@ -26,6 +26,11 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
+      - name: Install contract test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes jq ripgrep
+
       - name: Check update and MCP simple-install contracts
         run: npx --yes bats@1.12.0 tests/safe-update.bats tests/mcp-simple-install.bats
 
@@ -37,12 +42,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Simple Install
         run: |
+          # A released bridge-capable app image must be configured for this repository.
+          if [ -z "$SAFE_UPDATE_TEST_IMAGE" ]; then
+            printf 'Set SAFE_UPDATE_TEST_IMAGE to a fixed released bridge-capable app image before installation CI.\n' >&2
+            exit 1
+          fi
           docker compose -f docker-compose.simple-install.yml down 2>&1
           docker system prune --force --volumes --all
           
-          # A released bridge-capable app image must be configured for this repository.
           # Never run a tag-only legacy startup against the new coordination contract.
-          test -n "$SAFE_UPDATE_TEST_IMAGE"
           test -f .env || cp .env.example .env
           ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token ./bin/eramba-update --install --image "$SAFE_UPDATE_TEST_IMAGE"
 

@@ -47,4 +47,5 @@ setup() {
   rg -q 'exec -T .*--user www-data eramba bin/cake current_config validate' "$workflow"
   rg -q 'exec -T .*--user www-data cron bin/cake migrations status' "$workflow"
   rg -q 'until docker compose .* exec -T .* eramba curl --fail' "$workflow"
+  rg -q 'apt-get install --yes jq ripgrep' "$workflow"
 }
