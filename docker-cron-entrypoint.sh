@@ -1,5 +1,3 @@
 #!/bin/sh
-
-su -s /bin/bash -c "crontab -u www-data /etc/cron.d/eramba-crontab" www-data
-
-exec docker-php-entrypoint "$@"
+set -eu
+exec /usr/local/lib/eramba-deployment/docker-cron-entrypoint.sh "$@"

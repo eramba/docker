@@ -13,6 +13,8 @@ jobs:
   simple_install:
     name: Simple Installation [${{ matrix.build-type }}]
     runs-on: ubuntu-22.04
+    env:
+      SAFE_UPDATE_TEST_IMAGE: ${{ vars.SAFE_UPDATE_TEST_IMAGE }}
     strategy:
       fail-fast: false
       matrix:
@@ -24,8 +26,13 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      - name: Check MCP simple-install contract
-        run: npx --yes bats@1.12.0 tests/mcp-simple-install.bats
+      - name: Install contract test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes jq ripgrep
+
+      - name: Check update and MCP simple-install contracts
+        run: npx --yes bats@1.12.0 tests/safe-update.bats tests/mcp-simple-install.bats
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -35,14 +42,25 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run Simple Install
         run: |
+          # A released bridge-capable app image must be configured for this repository.
+          if [ -z "$SAFE_UPDATE_TEST_IMAGE" ]; then
+            printf 'Set SAFE_UPDATE_TEST_IMAGE to a fixed released bridge-capable app image before installation CI.\n' >&2
+            exit 1
+          fi
           docker compose -f docker-compose.simple-install.yml down 2>&1
           docker system prune --force --volumes --all
           
-          ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token docker compose -f docker-compose.simple-install.yml up -d
+          # Never run a tag-only legacy startup against the new coordination contract.
+          test -f .env || cp .env.example .env
+          ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token ./bin/eramba-update --install --image "$SAFE_UPDATE_TEST_IMAGE"
 
       - name: Wait for apache to start
         timeout-minutes: 5
-        run: while ! `docker exec -w /var/www/eramba/app/upgrade -u www-data eramba curl -v -o /dev/null http://localhost:80`; do printf 'Waiting for Apache...\n'; sleep 2; done;
+        run: |
+          until docker compose -f docker-compose.simple-install.yml exec -T --user www-data eramba curl --fail --silent http://localhost:80/hello.txt >/dev/null; do
+            printf 'Waiting for Apache...\n'
+            sleep 2
+          done
 
       - name: HTTP Check
         run: |
@@ -79,7 +97,7 @@ jobs:
 
       - name: CMD Check
         run: |
-          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake current_config validate; then
+          if docker compose -f docker-compose.simple-install.yml exec -T -w /var/www/eramba/app/upgrade --user www-data eramba bin/cake current_config validate; then
             exit 0
           fi
 
@@ -87,7 +105,7 @@ jobs:
 
       - name: System Health Check
         run: |
-          if docker exec -w /var/www/eramba/app/upgrade -u www-data eramba bin/cake system_health check; then
+          if docker compose -f docker-compose.simple-install.yml exec -T -w /var/www/eramba/app/upgrade --user www-data eramba bin/cake system_health check; then
             exit 0
           fi
           
@@ -95,7 +113,7 @@ jobs:
 
       - name: Migrations Status Check On CRON Container (to determine if DB connection is working)
         run: |
-          if docker exec -w /var/www/eramba/app/upgrade -u www-data cron bin/cake migrations status; then
+          if docker compose -f docker-compose.simple-install.yml exec -T -w /var/www/eramba/app/upgrade --user www-data cron bin/cake migrations status; then
             exit 0
           fi
 

@@ -40,3 +40,12 @@ setup() {
   [ "$(jq -r '[.services.public_proxy.volumes[].target] | index("/certs/mycert.crt") != null' <<<"$COMPOSE_CONFIG")" = "true" ]
   [ "$(jq -r '[.services.public_proxy.volumes[].target] | index("/certs/mycert.key") != null' <<<"$COMPOSE_CONFIG")" = "true" ]
 }
+
+@test "installation CI resolves isolated app and cron containers through Compose services" {
+  workflow="$REPOSITORY_ROOT/.github/workflows/Docker.yml"
+  ! rg -q 'docker exec|container_name:' "$workflow"
+  rg -q 'exec -T .*--user www-data eramba bin/cake current_config validate' "$workflow"
+  rg -q 'exec -T .*--user www-data cron bin/cake migrations status' "$workflow"
+  rg -q 'until docker compose .* exec -T .* eramba curl --fail' "$workflow"
+  rg -q 'apt-get install --yes jq ripgrep' "$workflow"
+}

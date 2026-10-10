@@ -1,0 +1,46 @@
+services:
+  database_probe:
+    profiles: ["proof"]
+    image: ${ERAMBA_IMAGE}
+    user: www-data
+    entrypoint: ["php", "-d", "auto_prepend_file=", "/opt/eramba-safe-fixtures/database-probe.php"]
+    environment:
+      DB_HOST: mysql
+      DB_DATABASE: queue_proof
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - data:/var/www/eramba/app/upgrade/data
+      - ${ERAMBA_SAFE_FIXTURES:?Set the current app fixture directory}:/opt/eramba-safe-fixtures:ro
+    networks: [app_internal]
+  mysql:
+    image: mysql:8.0
+  eramba:
+    ports:
+      - "127.0.0.1:0:80"
+      - "127.0.0.1:0:8082"
+    volumes:
+      - fixture-vendor:/var/www/eramba/app/upgrade/vendor:ro
+      - ${ERAMBA_SAFE_FIXTURES:?Set the current app fixture directory}:/opt/eramba-safe-fixtures:ro
+      - ./tests/fixtures/runtime-http-vhost.conf:/etc/apache2/sites-available/000-default.conf:ro
+  cron:
+    volumes:
+      - fixture-vendor:/var/www/eramba/app/upgrade/vendor:ro
+      - ${ERAMBA_SAFE_FIXTURES:?Set the current app fixture directory}:/opt/eramba-safe-fixtures:ro
+  deployment_prepare:
+    volumes:
+      - fixture-vendor:/var/www/eramba/app/upgrade/vendor:ro
+  triggers_caddy:
+    image: ${ERAMBA_IMAGE}
+    entrypoint: ["node", "-e", "require('http').createServer((req,res)=>res.end('{}')).listen(9001)"]
+    cap_add: []
+  mcp_server:
+    image: ${ERAMBA_IMAGE}
+    entrypoint: ["node", "-e", "require('http').createServer((req,res)=>res.end('{}')).listen(3000)"]
+  public_proxy:
+    image: ${ERAMBA_IMAGE}
+    entrypoint: ["node", "-e", "require('http').createServer((req,res)=>{res.statusCode=503;res.end('fixture proxy');}).listen(443)"]
+volumes:
+  fixture-vendor:
+    external: true
+    name: ${ERAMBA_SAFE_VENDOR_VOLUME:?Set this to the verified current dependency hash volume}
