@@ -1,6 +1,5 @@
 services:
   mysql:
-    container_name: mysql
     image: mysql:8.4.3-oracle
     command: ["mysqld", "--disable-log-bin"]
     restart: always
@@ -16,15 +15,18 @@ services:
     networks:
       - app_internal
       - host_access
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
   redis:
-    container_name: redis
     image: redis:7.4.2-alpine
     restart: always
     networks:
       - app_internal
   eramba:
-    container_name: eramba
-    image: ghcr.io/eramba/eramba:latest
+    image: ${ERAMBA_IMAGE:-ghcr.io/eramba/eramba:latest}
     restart: always
     volumes:
       - data:/var/www/eramba/app/upgrade/data
@@ -37,7 +39,7 @@ services:
       - ./apache/vhost-ssl.conf:/etc/apache2/sites-available/000-default.conf
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
       - trigger-logs:/var/log/trigger-limits
-    environment:
+    environment: &eramba_environment
       DB_HOST: ${DB_HOST}
       DB_DATABASE: ${DB_DATABASE}
       DB_USERNAME: ${DB_USERNAME}
@@ -60,17 +62,24 @@ services:
       OAUTH2_REFRESH_TOKEN_TTL: ${OAUTH2_REFRESH_TOKEN_TTL:-2592000}
       OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:?Set OAUTH2_INTROSPECTION_CLIENT_ID in .env}
       OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:?Set OAUTH2_INTROSPECTION_CLIENT_SECRET in .env}
+      ERAMBA_INTERNAL_ORIGIN: http://eramba:8081
+      ERAMBA_MCP_API_URL: http://eramba:8081/laravel/api
     links:
       - mysql
       - redis
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     networks:
       - app_internal
       - triggers_net
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/eramba-deployment web-ready && curl -kfsS https://127.0.0.1/hello.txt >/dev/null"]
+      interval: 10s
+      timeout: 20s
+      retries: 30
   cron:
-    container_name: cron
-    image: ghcr.io/eramba/eramba:latest
+    image: ${ERAMBA_IMAGE:-ghcr.io/eramba/eramba:latest}
     command: ["cron", "-f"]
     entrypoint: ["/docker-cron-entrypoint.sh"]
     restart: always
@@ -81,41 +90,34 @@ services:
       - ./docker-cron-entrypoint.sh:/docker-cron-entrypoint.sh
       - ./crontab/crontab:/etc/cron.d/eramba-crontab
       - .env:/var/www/docker.env
-    environment:
-      DB_HOST: ${DB_HOST}
-      DB_DATABASE: ${DB_DATABASE}
-      DB_USERNAME: ${DB_USERNAME}
-      DB_PASSWORD: ${DB_PASSWORD}
-      CACHE_URL: ${CACHE_URL}
-      PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
-      USE_PROXY: ${USE_PROXY}
-      PROXY_HOST: ${PROXY_HOST}
-      PROXY_PORT: ${PROXY_PORT}
-      USE_PROXY_AUTH: ${USE_PROXY_AUTH}
-      PROXY_AUTH_USER: ${PROXY_AUTH_USER}
-      PROXY_AUTH_PASS: ${PROXY_AUTH_PASS}
-      TRIGGER_RUNNER_SHARED_SECRET: ${TRIGGER_RUNNER_SHARED_SECRET}
-      DOCKER_DEPLOYMENT: ${DOCKER_DEPLOYMENT}
-      LDAPTLS_REQCERT: ${LDAPTLS_REQCERT}
-      OAUTH2_ENABLED: ${OAUTH2_ENABLED:-1}
-      OAUTH2_SCOPE: ${OAUTH2_SCOPE:-eramba.full_access}
-      OAUTH2_AUTH_CODE_TTL: ${OAUTH2_AUTH_CODE_TTL:-120}
-      OAUTH2_ACCESS_TOKEN_TTL: ${OAUTH2_ACCESS_TOKEN_TTL:-900}
-      OAUTH2_REFRESH_TOKEN_TTL: ${OAUTH2_REFRESH_TOKEN_TTL:-2592000}
-      OAUTH2_INTROSPECTION_CLIENT_ID: ${OAUTH2_INTROSPECTION_CLIENT_ID:?Set OAUTH2_INTROSPECTION_CLIENT_ID in .env}
-      OAUTH2_INTROSPECTION_CLIENT_SECRET: ${OAUTH2_INTROSPECTION_CLIENT_SECRET:?Set OAUTH2_INTROSPECTION_CLIENT_SECRET in .env}
+    environment: *eramba_environment
     links:
       - mysql
       - redis
       - eramba
     depends_on:
-      - eramba
+      eramba:
+        condition: service_healthy
+    networks:
+      - app_internal
+      - triggers_net
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/queue-worker.ready && /usr/local/bin/eramba-deployment verify-ready"]
+      interval: 10s
+      timeout: 20s
+      retries: 30
+  deployment_prepare:
+    image: ${ERAMBA_IMAGE:-ghcr.io/eramba/eramba:latest}
+    profiles: ["maintenance"]
+    environment: *eramba_environment
+    volumes:
+      - data:/var/www/eramba/app/upgrade/data
+      - logs:/var/www/eramba/app/upgrade/logs
     networks:
       - app_internal
       - triggers_net
   triggers_caddy:
     image: ghcr.io/eramba/eramba-triggers:latest
-    container_name: triggers_caddy
     entrypoint:
       - /app/iptables-entrypoint.sh
     volumes:
@@ -138,7 +140,6 @@ services:
       start_period: 10s
   mcp_server:
     image: ghcr.io/eramba/eramba-mcp-server:${ERAMBA_MCP_IMAGE_TAG:-latest}
-    container_name: mcp_server
     restart: always
     depends_on:
       - eramba
@@ -164,10 +165,9 @@ services:
       retries: 3
       start_period: 10s
   public_proxy:
-    container_name: public_proxy
     image: caddy:2.8-alpine
     ports:
-      - 8443:443
+      - ${ERAMBA_PUBLIC_PORT:-8443}:443
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./apache/ssl/mycert.crt:/certs/mycert.crt:ro

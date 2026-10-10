@@ -13,6 +13,8 @@ jobs:
   simple_install:
     name: Simple Installation [${{ matrix.build-type }}]
     runs-on: ubuntu-22.04
+    env:
+      SAFE_UPDATE_TEST_IMAGE: ${{ vars.SAFE_UPDATE_TEST_IMAGE }}
     strategy:
       fail-fast: false
       matrix:
@@ -24,8 +26,8 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v3
 
-      - name: Check MCP simple-install contract
-        run: npx --yes bats@1.12.0 tests/mcp-simple-install.bats
+      - name: Check update and MCP simple-install contracts
+        run: npx --yes bats@1.12.0 tests/safe-update.bats tests/mcp-simple-install.bats
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
@@ -38,7 +40,11 @@ jobs:
           docker compose -f docker-compose.simple-install.yml down 2>&1
           docker system prune --force --volumes --all
           
-          ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token docker compose -f docker-compose.simple-install.yml up -d
+          # A released bridge-capable app image must be configured for this repository.
+          # Never run a tag-only legacy startup against the new coordination contract.
+          test -n "$SAFE_UPDATE_TEST_IMAGE"
+          test -f .env || cp .env.example .env
+          ERAMBA_MCP_DEV_BEARER_TOKEN=ci-mcp-smoke-token ./bin/eramba-update --install --image "$SAFE_UPDATE_TEST_IMAGE"
 
       - name: Wait for apache to start
         timeout-minutes: 5

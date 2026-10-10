@@ -33,3 +33,6 @@ nbproject/*
 .vscode
 # Sass preprocessor
 .sass-cache/
+
+# Private execution reports and isolated runtime credentials
+.superpowers/

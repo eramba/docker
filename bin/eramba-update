@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+installation_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+image=
+archive=
+no_pull=0
+project=
+env_file="$installation_root/.env"
+timeout=7200
+install=0
+enterprise=0
+extra_compose_files=()
+while (($#)); do
+    case "$1" in
+        --image) image=${2:?Missing image}; shift 2 ;;
+        --load) archive=${2:?Missing archive}; shift 2 ;;
+        --no-pull) no_pull=1; shift ;;
+        --project-name) project=${2:?Missing project}; shift 2 ;;
+        --env-file) env_file=${2:?Missing environment file}; shift 2 ;;
+        --drain-timeout) timeout=${2:?Missing timeout}; shift 2 ;;
+        --install) install=1; shift ;;
+        --enterprise) enterprise=1; shift ;;
+        --compose-file) extra_compose_files+=("${2:?Missing Compose override}"); shift 2 ;;
+        *) printf 'Usage: eramba-update --image <fixed-reference> [--load archive | --no-pull] [--install] [--enterprise] [--project-name name] [--env-file path] [--compose-file path] [--drain-timeout seconds]\n' >&2; exit 64 ;;
+    esac
+done
+last_component=${image##*/}
+[[ "$image" =~ ^[a-zA-Z0-9][a-zA-Z0-9._:/@-]*$ && "$last_component" == *:* && "$last_component" != *:latest ]] || { printf 'A fixed image tag or digest is required.\n' >&2; exit 64; }
+[[ "$timeout" =~ ^[0-9]{1,8}$ ]] && ((10#$timeout > 0)) || { printf 'Drain timeout must be positive whole seconds.\n' >&2; exit 64; }
+[[ -f "$env_file" ]] || { printf 'The selected environment file is missing.\n' >&2; exit 64; }
+command -v jq >/dev/null
+compose=(docker compose --project-directory "$installation_root" --env-file "$env_file" -f "$installation_root/docker-compose.simple-install.yml")
+((enterprise == 0)) || compose+=(-f "$installation_root/docker-compose.simple-install.enterprise.yml")
+for file in "${extra_compose_files[@]}"; do
+    [[ -f "$file" ]] || exit 64
+    compose+=(-f "$file")
+done
+[[ -z "$project" ]] || compose+=(--project-name "$project")
+export ERAMBA_IMAGE="$image"
+configuration=$("${compose[@]}" config --format json)
+project=$(jq -er '.name' <<<"$configuration")
+app_volume=$(jq -er '.volumes.app | select(.external != true) | .name' <<<"$configuration")
+[[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ && -n "$app_volume" ]] || exit 64
+if [[ -n "$archive" ]]; then
+    [[ -f "$archive" ]] || exit 64
+    docker load --input "$archive" >/dev/null
+elif ((no_pull == 0)); then
+    docker pull "$image" >/dev/null
+fi
+image_id=$(docker image inspect --format '{{.Id}}' "$image")
+target=$(docker run --rm --entrypoint /usr/local/bin/eramba-deployment "$image_id" identity)
+database=$(docker run --rm --entrypoint /usr/local/bin/eramba-deployment \
+    --env "DB_HOST=$(jq -er '.services.eramba.environment.DB_HOST' <<<"$configuration")" \
+    --env "DB_PORT=$(jq -r '.services.eramba.environment.DB_PORT // "3306"' <<<"$configuration")" \
+    --env "DB_DATABASE=$(jq -er '.services.eramba.environment.DB_DATABASE' <<<"$configuration")" \
+    --env "DB_USERNAME=$(jq -er '.services.eramba.environment.DB_USERNAME' <<<"$configuration")" \
+    "$image_id" database-identity)
+persist_image() {
+    # Compose consumes dotenv as data. Persist only the selected non-secret image key.
+    local temporary
+    temporary=$(mktemp "${env_file}.image.XXXXXX")
+    awk -v image="$image" '/^[[:space:]]*ERAMBA_IMAGE=/ { print "ERAMBA_IMAGE=" image; seen=1; next } { print } END { if (!seen) print "ERAMBA_IMAGE=" image }' "$env_file" > "$temporary"
+    mv "$temporary" "$env_file"
+}
+if ((install == 0)); then
+    old_state=$("${compose[@]}" exec -T --user www-data eramba /usr/local/bin/eramba-deployment status) || { printf 'Controlled legacy bootstrap or recovery is required; no resources were replaced.\n' >&2; exit 1; }
+    old_container=$("${compose[@]}" ps -q eramba)
+    [[ -n "$old_container" ]] || exit 1
+    old_image=$(docker inspect --format '{{.Image}}' "$old_container")
+    jq -e --arg database "$database" '.preparedDatabase == $database' <<<"$old_state" >/dev/null || { printf 'Selected database configuration differs from the prepared installation; controlled database transition is required.\n' >&2; exit 1; }
+    if [[ "$old_image" == "$image_id" ]] && jq -e --arg code "$target" '.phase == "OPEN" and .preparedCode == $code' <<<"$old_state" >/dev/null; then
+        persist_image
+        printf 'Project %s already has this code prepared.\n' "$project"
+        exit 0
+    fi
+    mysql_id=$("${compose[@]}" ps -q mysql)
+    [[ -n "$mysql_id" && $(docker inspect --format '{{.State.Running}}' "$mysql_id") == true ]] || { printf 'Existing MySQL must remain running during drain.\n' >&2; exit 1; }
+else
+    # A fresh-install flag cannot attest retirement of an existing legacy database.
+    for key in db-data data app; do
+        volume=$(jq -er --arg key "$key" '.volumes[$key].name' <<<"$configuration")
+        if docker volume inspect "$volume" >/dev/null 2>&1; then
+            printf 'Fresh installation requires absent application/database volumes; use controlled recovery for existing resources.\n' >&2
+            exit 1
+        fi
+    done
+    "${compose[@]}" up -d --wait mysql redis
+fi
+operation=$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')
+mode=update
+((install == 0)) || mode=install
+coordinator=$(ERAMBA_IMAGE="$image_id" "${compose[@]}" run -d --no-deps deployment_prepare /usr/local/bin/eramba-deployment prepare-host "$image" "$operation" "$timeout" "$mode")
+[[ -n "$coordinator" ]] || exit 1
+printf 'Project %s operation %s: waiting for positive execution retirement.\n' "$project" "$operation"
+deadline=$((SECONDS + 10#$timeout))
+while ! docker exec --user www-data "$coordinator" /usr/local/bin/eramba-deployment host-drained "$operation" >/dev/null 2>&1; do
+    [[ $(docker inspect --format '{{.State.Running}}' "$coordinator") == true ]] || { printf 'Preparation failed; retained admission remains closed.\n' >&2; exit 1; }
+    ((SECONDS < deadline)) || { printf 'Drain deadline exceeded; no clients or volumes were removed.\n' >&2; exit 1; }
+    sleep 0.1
+done
+# The target coordinator holds its session and exclusive barrier throughout this switch.
+if ((install == 0)); then
+    ownership=$(docker volume inspect --format '{{index .Labels "com.docker.compose.project"}} {{index .Labels "com.docker.compose.volume"}}' "$app_volume")
+    [[ "$ownership" == "$project app" ]] || { printf 'Application volume ownership cannot be proven.\n' >&2; exit 1; }
+fi
+"${compose[@]}" stop cron eramba mcp_server triggers_caddy public_proxy
+"${compose[@]}" rm -f cron eramba mcp_server triggers_caddy public_proxy
+if ((install == 0)); then
+    docker volume rm "$app_volume" >/dev/null
+fi
+[[ $(docker image inspect --format '{{.Id}}' "$image") == "$image_id" ]] || { printf 'Selected local image changed; admission remains closed.\n' >&2; exit 1; }
+docker exec --user www-data "$coordinator" /usr/local/bin/eramba-deployment host-permit "$operation"
+result=$(docker wait "$coordinator")
+[[ "$result" == 0 ]] || { printf 'Initialization/synchronization failed; inspect the retained coordinator.\n' >&2; exit 1; }
+persist_image
+ERAMBA_IMAGE="$image_id" "${compose[@]}" up -d --wait --pull never eramba cron triggers_caddy mcp_server public_proxy
+for service in eramba cron; do
+    container=$("${compose[@]}" ps -q "$service")
+    [[ -n "$container" && $(docker inspect --format '{{.Image}}' "$container") == "$image_id" ]] || { printf 'Activated application image differs from the prepared image.\n' >&2; exit 1; }
+done
+docker rm "$coordinator" >/dev/null
+printf 'Project %s prepared and started with %s.\n' "$project" "$image"

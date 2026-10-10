@@ -1,5 +1,4 @@
-@hourly export $(cat /var/www/docker.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job hourly >> /var/log/cron.log 2>&1
-@daily export $(cat /var/www/docker.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job daily >> /var/log/cron.log 2>&1
-@yearly export $(cat /var/www/docker.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake cron job yearly >> /var/log/cron.log 2>&1
-* * * * * export $(cat /var/www/docker.env) && /bin/sh /var/www/eramba/app/upgrade/bin/cake queue run -v >> /var/log/cron.log 2>&1
-# remember to end this file with an empty new line
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+@hourly su -s /bin/bash -c "cd /var/www/eramba && /usr/local/bin/eramba-deployment cron-run app/upgrade/bin/cake cron job hourly" www-data >/proc/1/fd/1 2>/proc/1/fd/2
+@daily su -s /bin/bash -c "cd /var/www/eramba && /usr/local/bin/eramba-deployment cron-run app/upgrade/bin/cake cron job daily" www-data >/proc/1/fd/1 2>/proc/1/fd/2
+@yearly su -s /bin/bash -c "cd /var/www/eramba && /usr/local/bin/eramba-deployment cron-run app/upgrade/bin/cake cron job yearly" www-data >/proc/1/fd/1 2>/proc/1/fd/2
