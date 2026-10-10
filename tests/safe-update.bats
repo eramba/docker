@@ -3,7 +3,7 @@ setup() {
   UPDATE_ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   UPDATE_TEST_DIR="$(mktemp -d)"
   export UPDATE_CALLS="$UPDATE_TEST_DIR/calls"
-  export UPDATE_FAILURE="" UPDATE_REPEAT="" UPDATE_IMAGE_CHANGED="" UPDATE_DATABASE_CHANGED=""
+  export UPDATE_FAILURE="" UPDATE_REPEAT="" UPDATE_IMAGE_CHANGED="" UPDATE_DATABASE_CHANGED="" UPDATE_OVERRIDE_IMAGE="" UPDATE_DRAINED_TARGET=""
   mkdir "$UPDATE_TEST_DIR/bin"
   cp "$UPDATE_ROOT/tests/fixtures/docker-update-recorder" "$UPDATE_TEST_DIR/bin/docker"
   chmod +x "$UPDATE_TEST_DIR/bin/docker"
@@ -77,4 +77,18 @@ update_image() { "$UPDATE_ROOT/bin/eramba-update" --project-name fixture --env-f
   run "$UPDATE_ROOT/bin/eramba-update" --env-file "$UPDATE_TEST_DIR/.env" --image ghcr.io/eramba/eramba:latest
   [ "$status" -ne 0 ]
   [ ! -s "$UPDATE_CALLS" ]
+}
+
+@test "a Compose override cannot select a different coordinator image" {
+  export UPDATE_OVERRIDE_IMAGE=1
+  run update_image
+  [ "$status" -ne 0 ]
+  ! rg -q 'prepare-host| stop |volume rm|host-permit' "$UPDATE_CALLS"
+}
+
+@test "drained target must equal the selected image code before client removal" {
+  export UPDATE_DRAINED_TARGET=1
+  run update_image
+  [ "$status" -ne 0 ]
+  ! rg -q ' stop |volume rm|host-permit' "$UPDATE_CALLS"
 }

@@ -38,7 +38,7 @@ for file in "${extra_compose_files[@]}"; do
 done
 [[ -z "$project" ]] || compose+=(--project-name "$project")
 export ERAMBA_IMAGE="$image"
-configuration=$("${compose[@]}" config --format json)
+configuration=$("${compose[@]}" --profile maintenance config --format json)
 project=$(jq -er '.name' <<<"$configuration")
 app_volume=$(jq -er '.volumes.app | select(.external != true) | .name' <<<"$configuration")
 [[ "$project" =~ ^[a-z0-9][a-z0-9_-]*$ && -n "$app_volume" ]] || exit 64
@@ -49,6 +49,32 @@ elif ((no_pull == 0)); then
     docker pull "$image" >/dev/null
 fi
 image_id=$(docker image inspect --format '{{.Id}}' "$image")
+export ERAMBA_IMAGE="$image_id"
+configuration=$("${compose[@]}" --profile maintenance config --format json)
+# Overrides may customize networking, but cannot change the preparation image or DB/data scope.
+for service in eramba cron deployment_prepare; do
+    reference=$(jq -er --arg service "$service" '.services[$service].image' <<<"$configuration")
+    [[ $(docker image inspect --format '{{.Id}}' "$reference") == "$image_id" ]] || { printf 'Application/coordinator image override differs from the selected image.\n' >&2; exit 1; }
+done
+jq -e '
+  .services as $services |
+  ["DB_HOST","DB_PORT","DB_DATABASE","DB_USERNAME","DB_PASSWORD"] as $keys |
+  all(["cron","deployment_prepare"][]; . as $service |
+    all($keys[]; . as $key | ($services[$service].environment[$key] // (if $key == "DB_PORT" then "3306" else "" end)) == ($services.eramba.environment[$key] // (if $key == "DB_PORT" then "3306" else "" end)))) and
+  (($services.deployment_prepare.entrypoint // []) | length == 0) and
+  all(["/var/www/eramba/app/upgrade/data","/var/www/eramba/app/upgrade/logs"][]; . as $path |
+    [$services.deployment_prepare.volumes[]? | select(.target == $path)] as $mount |
+    ($mount | length == 1) and ($mount[0].read_only != true) and
+    all(["eramba","cron"][]; . as $service | [$services[$service].volumes[]? | select(.target == $path)] == $mount)) and
+  all($services.deployment_prepare.volumes[]?;
+    .target == "/var/www/eramba/app/upgrade/data" or .target == "/var/www/eramba/app/upgrade/logs" or
+    (.target == "/var/www/eramba/app/upgrade/vendor" and .read_only == true))
+' <<<"$configuration" >/dev/null || { printf 'Coordinator overrides violate the prepared database, data or source ownership contract.\n' >&2; exit 1; }
+# A final private override pins IDs even when an earlier override uses a mutable tag.
+pin_directory=$(mktemp -d)
+trap 'rm -rf "$pin_directory"' EXIT
+jq -n --arg image "$image_id" '{services:{eramba:{image:$image},cron:{image:$image},deployment_prepare:{image:$image}}}' > "$pin_directory/image.json"
+compose+=(-f "$pin_directory/image.json")
 target=$(docker run --rm --entrypoint /usr/local/bin/eramba-deployment "$image_id" identity)
 database=$(docker run --rm --entrypoint /usr/local/bin/eramba-deployment \
     --env "DB_HOST=$(jq -er '.services.eramba.environment.DB_HOST' <<<"$configuration")" \
@@ -92,13 +118,15 @@ mode=update
 ((install == 0)) || mode=install
 coordinator=$(ERAMBA_IMAGE="$image_id" "${compose[@]}" run -d --no-deps deployment_prepare /usr/local/bin/eramba-deployment prepare-host "$image" "$operation" "$timeout" "$mode")
 [[ -n "$coordinator" ]] || exit 1
+[[ $(docker inspect --format '{{.Image}}' "$coordinator") == "$image_id" ]] || { printf 'Coordinator did not start the selected image; admission remains closed.\n' >&2; exit 1; }
 printf 'Project %s operation %s: waiting for positive execution retirement.\n' "$project" "$operation"
 deadline=$((SECONDS + 10#$timeout))
-while ! docker exec --user www-data "$coordinator" /usr/local/bin/eramba-deployment host-drained "$operation" >/dev/null 2>&1; do
+while ! drained=$(docker exec --user www-data "$coordinator" /usr/local/bin/eramba-deployment host-drained "$operation" 2>/dev/null); do
     [[ $(docker inspect --format '{{.State.Running}}' "$coordinator") == true ]] || { printf 'Preparation failed; retained admission remains closed.\n' >&2; exit 1; }
     ((SECONDS < deadline)) || { printf 'Drain deadline exceeded; no clients or volumes were removed.\n' >&2; exit 1; }
     sleep 0.1
 done
+jq -e --arg operation "$operation" --arg target "$target" '.operationId == $operation and .target == $target' <<<"$drained" >/dev/null || { printf 'Drained coordinator target differs from the selected code; no clients or volumes were removed.\n' >&2; exit 1; }
 # The target coordinator holds its session and exclusive barrier throughout this switch.
 if ((install == 0)); then
     ownership=$(docker volume inspect --format '{{index .Labels "com.docker.compose.project"}} {{index .Labels "com.docker.compose.volume"}}' "$app_volume")

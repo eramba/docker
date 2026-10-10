@@ -6,7 +6,9 @@ case "$1" in
   compose)
     arguments=" $* "
     if [[ "$arguments" == *' config '* ]]; then
-      printf '%s\n' '{"name":"fixture","services":{"eramba":{"environment":{"DB_HOST":"mysql","DB_PORT":"3306","DB_DATABASE":"fixture","DB_USERNAME":"fixture"}}},"volumes":{"app":{"name":"fixture_app"},"db-data":{"name":"fixture_db-data"},"data":{"name":"fixture_data"},"logs":{"name":"fixture_logs"}}}'
+      image=sha256:fixture-image
+      [[ ${UPDATE_OVERRIDE_IMAGE:-} != 1 ]] || image=sha256:other-image
+      jq -n --arg image "$image" '{name:"fixture",services:({eramba:{image:"sha256:fixture-image"},cron:{image:"sha256:fixture-image"},deployment_prepare:{image:$image}} | with_entries(.value.environment={DB_HOST:"mysql",DB_PORT:"3306",DB_DATABASE:"fixture",DB_USERNAME:"fixture",DB_PASSWORD:"fixture"}) | .deployment_prepare.volumes=[{type:"volume",source:"fixture_data",target:"/var/www/eramba/app/upgrade/data"},{type:"volume",source:"fixture_logs",target:"/var/www/eramba/app/upgrade/logs"}] | .eramba.volumes=.deployment_prepare.volumes | .cron.volumes=.deployment_prepare.volumes),volumes:{app:{name:"fixture_app"},"db-data":{name:"fixture_db-data"},data:{name:"fixture_data"},logs:{name:"fixture_logs"}}}'
     elif [[ "$arguments" == *' identity '* ]]; then
       printf 'fixture-code\n'
     elif [[ "$arguments" == *' status '* ]]; then
@@ -21,16 +23,21 @@ case "$1" in
     ;;
   exec)
     [[ "$*" != *host-drained* || ${UPDATE_FAILURE:-} != drain ]] || exit 75
+    if [[ "$*" == *host-drained* ]]; then
+      target=fixture-code
+      [[ ${UPDATE_DRAINED_TARGET:-} != 1 ]] || target=other-code
+      printf '{"operationId":"%s","target":"%s"}\n' "${@: -1}" "$target"
+    fi
     ;;
   inspect)
     if [[ "$*" == *'{{.Image}}'* ]]; then
-      [[ ${UPDATE_IMAGE_CHANGED:-} == 1 && ! -f "$UPDATE_CALLS.activated" ]] && printf 'sha256:previous-image\n' || printf 'sha256:fixture-image\n'
+      [[ ${UPDATE_IMAGE_CHANGED:-} == 1 && ! -f "$UPDATE_CALLS.activated" && "$*" != *fixture-preparation-id* ]] && printf 'sha256:previous-image\n' || printf 'sha256:fixture-image\n'
     else
       printf 'true\n'
     fi
     ;;
   image)
-    printf 'sha256:fixture-image\n'
+    [[ "$*" == *sha256:other-image* ]] && printf 'sha256:other-image\n' || printf 'sha256:fixture-image\n'
     ;;
   volume)
     if [[ "$2" == inspect ]]; then
