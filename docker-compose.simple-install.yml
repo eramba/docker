@@ -44,6 +44,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       USE_PROXY: ${USE_PROXY}
       PROXY_HOST: ${PROXY_HOST}
       PROXY_PORT: ${PROXY_PORT}
@@ -175,6 +176,7 @@ services:
     environment:
       MCP_UPSTREAM: mcp_server:3000
       ERAMBA_UPSTREAM: https://eramba:443
+      CADDY_TRUSTED_PROXIES: ${CADDY_TRUSTED_PROXIES:-}
     depends_on:
       - eramba
       - mcp_server
