@@ -21,6 +21,22 @@ Two optional `.env` settings control separate trust boundaries:
 
 Both settings default to empty. Apache then keeps its previous behavior and Caddy ignores incoming forwarded headers. These settings describe **incoming reverse proxies**; `USE_PROXY` / `PROXY_HOST` configure outgoing connections and are unrelated. You do not need to add `TRUST_PROXY` for Apache's IP fix.
 
+### Select your Compose files
+
+Run the following commands from the repository root in the same shell. Select the files for your edition once so every subsequent command uses the same configuration.
+
+Community:
+
+```sh
+export COMPOSE_FILE=docker-compose.simple-install.yml
+```
+
+Enterprise:
+
+```sh
+export COMPOSE_FILE=docker-compose.simple-install.yml:docker-compose.simple-install.enterprise.yml
+```
+
 ### Clients connecting directly to the bundled Caddy
 
 Find Caddy's current address on the internal application network:
@@ -36,7 +52,42 @@ TRUSTED_PROXIES=172.30.50.10
 CADDY_TRUSTED_PROXIES=
 ```
 
-The address above is an example, not a default. Docker may assign a different address when containers or networks are recreated. Reserve a stable address using a local Compose override, or recheck it after recreation and update the setting. Prefer an exact proxy address to trusting every container on a shared network.
+The address above is an example, not a default. Docker may assign a different address when containers or networks are recreated. Reserve a stable address with the optional override below, or recheck it after every recreation and update `TRUSTED_PROXIES` before recreating Eramba. Prefer an exact proxy address to trusting every container on a shared network.
+
+### Optional: reserve a stable Caddy address
+
+Create a local `docker-compose.proxy-ip.yml` with the following contents. **Choose a subnet that does not overlap your host, LAN, VPN or other Docker networks**, and adjust both the subnet and Caddy address together. These example values are deliberately not set in the main Compose file.
+
+```yaml
+services:
+  public_proxy:
+    networks:
+      app_internal:
+        ipv4_address: 172.30.50.10
+      host_access: {}
+networks:
+  app_internal:
+    ipam:
+      config:
+        - subnet: 172.30.50.0/24
+          ip_range: 172.30.50.128/25
+```
+
+The automatic allocation pool is separate from the reserved Caddy address. Keep `host_access` attached as shown. Append the override after your edition's files, and use this same `COMPOSE_FILE` for future stack commands:
+
+```sh
+export COMPOSE_FILE="$COMPOSE_FILE:docker-compose.proxy-ip.yml"
+docker compose config --quiet
+```
+
+Set `TRUSTED_PROXIES` to the reserved Caddy address, plus any trusted external proxy hops. For an existing installation, changing network IPAM requires recreating the network and a brief outage:
+
+```sh
+docker compose down
+docker compose up -d
+```
+
+Do not add `--volumes` to `down`; the database and application data volumes must be retained. Once this override is active, Caddy keeps its reserved address across container/network recreation.
 
 ### An additional reverse proxy or load balancer
 
@@ -53,27 +104,35 @@ Only trust infrastructure you control. Do not use a catch-all range such as `0.0
 
 ### Apply and verify
 
-After updating `.env`, recreate the two services so the new environment reaches them. A plain `docker compose restart` does not apply changed environment variables.
+A plain `docker compose restart` does not apply changed environment variables. Apply changes in this order so Apache trusts Caddy's final address:
 
-Community:
+1. If `CADDY_TRUSTED_PROXIES` changed, save that setting in `.env` and recreate **only Caddy**:
 
-```sh
-docker compose -f docker-compose.simple-install.yml up -d --no-deps --force-recreate eramba public_proxy
-```
+   ```sh
+   docker compose up -d --no-deps --force-recreate public_proxy
+   ```
 
-Enterprise:
+2. After Caddy has been recreated, inspect its final address on `app_internal`:
 
-```sh
-docker compose -f docker-compose.simple-install.yml -f docker-compose.simple-install.enterprise.yml up -d --no-deps --force-recreate eramba public_proxy
-```
+   ```sh
+   docker inspect public_proxy --format '{{range $name, $network := .NetworkSettings.Networks}}{{println $name $network.IPAddress}}{{end}}'
+   ```
+
+3. Update `TRUSTED_PROXIES` in `.env` with that address and any trusted external proxy hops. Recreate **only Eramba**:
+
+   ```sh
+   docker compose up -d --no-deps --force-recreate eramba
+   ```
+
+If only `TRUSTED_PROXIES` changed, leave Caddy running: verify its current address and perform step 3. With dynamic addressing, repeat steps 2 and 3 after any future recreation of Caddy or its network. The optional fixed-address override avoids this address drift.
 
 Check Apache's generated configuration and syntax:
 
 ```sh
-docker compose -f docker-compose.simple-install.yml exec eramba cat /etc/apache2/conf-enabled/remoteip.conf
-docker compose -f docker-compose.simple-install.yml exec eramba apachectl -t
+docker compose exec eramba cat /etc/apache2/conf-enabled/remoteip.conf
+docker compose exec eramba apachectl -t
 ```
 
-With `TRUSTED_PROXIES` set, the file should contain the configured `RemoteIPInternalProxy` entries and the `X-Forwarded-For` rewrite. With an empty setting it should be empty. After recreating Caddy, recheck its internal address if you have not reserved one.
+With `TRUSTED_PROXIES` set, the file should contain the configured `RemoteIPInternalProxy` entries and the `X-Forwarded-For` rewrite. With an empty setting it should be empty.
 
 Log in and check that the Eramba access log and User Audit Trail show your client IP. Repeat a request through the same public endpoint with a forged header, for example `curl -k -H 'X-Forwarded-For: 1.2.3.4' https://your-eramba.example/`; the logged IP must remain the actual client address. Also check that login redirects remain HTTPS. The fix makes subsequent access logs, audit events, and session updates use the resolved client IP; it does not rewrite historical records or add an IP field to the User Bans screen.
