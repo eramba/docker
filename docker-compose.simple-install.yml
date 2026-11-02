@@ -44,7 +44,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       CACHE_URL: ${CACHE_URL}
       PUBLIC_ADDRESS: ${PUBLIC_ADDRESS}
-      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-${PUBLIC_PROXY_IP:-172.30.50.10}}
       USE_PROXY: ${USE_PROXY}
       PROXY_HOST: ${PROXY_HOST}
       PROXY_PORT: ${PROXY_PORT}
@@ -181,8 +181,9 @@ services:
       - eramba
       - mcp_server
     networks:
-      - app_internal
-      - host_access
+      app_internal:
+        ipv4_address: ${PUBLIC_PROXY_IP:-172.30.50.10}
+      host_access: {}
 volumes:
   app:
   data:
@@ -193,5 +194,9 @@ volumes:
 networks:
   app_internal:
     internal: true
+    ipam:
+      config:
+        - subnet: ${APP_INTERNAL_SUBNET:-172.30.50.0/24}
+          ip_range: ${APP_INTERNAL_IP_RANGE:-172.30.50.128/25}
   triggers_net:
   host_access:
