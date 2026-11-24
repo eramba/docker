@@ -1,3 +1,12 @@
+{
+	servers {
+		# An empty list trusts no upstream proxies. Only configure proxies that
+		# actually connect to Caddy; Apache has its own TRUSTED_PROXIES list.
+		trusted_proxies static {$CADDY_TRUSTED_PROXIES}
+		trusted_proxies_strict
+	}
+}
+
 :443 {
 	tls /certs/mycert.crt /certs/mycert.key
 
